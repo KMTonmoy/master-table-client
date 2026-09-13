@@ -1,26 +1,246 @@
-@import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@400;500;600&display=swap");
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-heading);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --nav-height: 72px;
+  --nav-bg: color-mix(in oklab, var(--background) 85%, transparent);
+  /* Master Table brand tokens */
+  --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Playfair Display", ui-serif, Georgia, serif;
+
+  --background: #FFF8E7;
+  /* Curd/Yogurt White */
+  --foreground: #4A2E20;
+  /* Dark Brown body text */
+
+  --card: #F5EFE1;
+  /* Soft Cream */
+  --card-foreground: #4A2E20;
+
+  --popover: #F5EFE1;
+  --popover-foreground: #4A2E20;
+
+  --primary: #E0A526;
+  /* Yellowish Gold */
+  --primary-foreground: #FFFFFF;
+
+  --secondary: #F5EFE1;
+  /* Soft Cream */
+  --secondary-foreground: #4A2E20;
+
+  --muted: #F5EFE1;
+  --muted-foreground: #8A7A6B;
+  /* Warm Grey-Brown */
+
+  --accent: #E0A526;
+  --accent-foreground: #FFFFFF;
+
+  --destructive: oklch(0.577 0.245 27.325);
+
+  --border: #E8DCC4;
+  /* Light Tan */
+  --input: #E8DCC4;
+  --ring: #E0A526;
+
+  --chart-1: #E0A526;
+  --chart-2: #C78E1E;
+  --chart-3: #8A7A6B;
+  --chart-4: #4A2E20;
+  --chart-5: #E8DCC4;
+
+  --radius: 0.625rem;
+
+  --sidebar: #F5EFE1;
+  --sidebar-foreground: #4A2E20;
+  --sidebar-primary: #E0A526;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #E8DCC4;
+  --sidebar-accent-foreground: #4A2E20;
+  --sidebar-border: #E8DCC4;
+  --sidebar-ring: #E0A526;
+}
+
+.dark {
+  --background: #201A12;
+  --foreground: #F5EFE1;
+
+  --card: #2A2117;
+  --card-foreground: #F5EFE1;
+
+  --popover: #2A2117;
+  --popover-foreground: #F5EFE1;
+
+  --primary: #E0A526;
+  --primary-foreground: #201A12;
+
+  --secondary: #34291C;
+  --secondary-foreground: #F5EFE1;
+
+  --muted: #34291C;
+  --muted-foreground: #B8A794;
+
+  --accent: #E0A526;
+  --accent-foreground: #201A12;
+
+  --destructive: oklch(0.704 0.191 22.216);
+
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: #E0A526;
+
+  --chart-1: #E0A526;
+  --chart-2: #C78E1E;
+  --chart-3: #B8A794;
+  --chart-4: #F5EFE1;
+  --chart-5: #34291C;
+
+  --sidebar: #2A2117;
+  --sidebar-foreground: #F5EFE1;
+  --sidebar-primary: #E0A526;
+  --sidebar-primary-foreground: #201A12;
+  --sidebar-accent: #34291C;
+  --sidebar-accent-foreground: #F5EFE1;
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: #E0A526;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  html {
+    @apply font-sans;
+  }
+
+  h1,
+  h2,
+  h3,
+  .font-heading {
+    font-family: var(--font-heading);
+  }
+
+  h1 {
+    font-size: 48px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--primary);
+  }
+
+  h2 {
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--primary);
+  }
+
+  h3 {
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--foreground);
+  }
+
+  p {
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--foreground);
+  }
+
+  @media (min-width: 768px) {
+    h1 {
+      font-size: 56px;
+    }
+
+    h2 {
+      font-size: 32px;
+    }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center;
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    font-weight: 600;
+    padding: 12px 28px;
+    border-radius: 10px;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .btn-primary:hover {
+    background-color: #C78E1E;
+    box-shadow: 0 4px 12px rgba(224, 165, 38, 0.35);
+  }
+
+  .section {
+    padding-block: 40px;
+  }
+
+  @media (min-width: 768px) {
+    .section {
+      padding-block: 80px;
+    }
+  }
+
+  .content-wrap {
+    max-width: 1200px;
+    margin-inline: auto;
+  }
 }
