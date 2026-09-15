@@ -35,6 +35,11 @@ const Navbar = () => {
     };
   }, [open]);
 
+  // Close drawer on route change
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
 
@@ -105,8 +110,11 @@ const Navbar = () => {
             )}
           </Button>
 
-          <Button asChild className="hidden lg:inline-flex">
-            <Link href="/reservations">Book a Table</Link>
+          <Button
+            className="hidden h-9 px-5 lg:inline-flex"
+            render={<Link href="/reservations" />}
+          >
+            Book a Table
           </Button>
 
           <Button
@@ -151,10 +159,16 @@ const Navbar = () => {
           );
         })}
 
-        <Button asChild className="mt-3 w-full">
-          <Link href="/reservations" onClick={() => setOpen(false)}>
-            Book a Table
-          </Link>
+        <Button
+          className="mt-3 h-10 w-full"
+          render={
+            <Link
+              href="/reservations"
+              onClick={() => setOpen(false)}
+            />
+          }
+        >
+          Book a Table
         </Button>
       </div>
     </header>
