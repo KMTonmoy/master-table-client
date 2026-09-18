@@ -12,7 +12,7 @@ const About = () => {
       <div className="content-wrap grid grid-cols-1 items-center gap-10 px-5 lg:grid-cols-2 lg:gap-16">
         <div className="relative aspect-[5/4] w-full overflow-hidden rounded-3xl border border-border">
           <Image
-            src="/images/about-kitchen.jpg"
+            src="https://www.escoffier.edu/wp-content/uploads/2021/08/Confident-smiling-female-chef-holding-two-plates-cooked-food-in-kitchen.jpeg"
             alt="Chef tending to a wood-fired tandoor oven in the kitchen"
             fill
             sizes="(min-width: 1024px) 50vw, 100vw"

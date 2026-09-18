@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
+  { label: "Home", href: "/" },
   { label: "Menu", href: "/menu" },
   { label: "About", href: "/about" },
   { label: "Reservations", href: "/reservations" },
@@ -20,6 +21,12 @@ const Navbar = () => {
   const { setTheme, resolvedTheme } = useTheme();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+ 
+  const [drawerPathname, setDrawerPathname] = useState(pathname);
+  if (pathname !== drawerPathname) {
+    setDrawerPathname(pathname);
+    setOpen(false);
+  }
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -34,11 +41,6 @@ const Navbar = () => {
       document.body.style.overflow = "";
     };
   }, [open]);
-
-  // Close drawer on route change
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);

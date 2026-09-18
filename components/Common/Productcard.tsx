@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { Flame, Plus, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type DishCategory =
@@ -16,11 +17,11 @@ export type DishCategory =
   | "dessert";
 
 export type Dish = {
-  id: string;
+  _id: string;
   name: string;
   description: string;
   price: number;
-  /** ✅ Array of image URLs (first one is the primary/thumbnail) */
+
   images: string[];
   ingredients?: string[];
   diet: "veg" | "non-veg" | "vegan";
@@ -46,18 +47,36 @@ const DietMark = ({ diet }: { diet: Dish["diet"] }) => {
       title={label}
       className={cn(
         "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] border backdrop-blur-sm",
-        isVeg ? "border-green-600" : "border-red-600"
+        isVeg ? "border-green-600" : "border-red-600",
       )}
     >
       <span
         className={cn(
           "h-1.5 w-1.5 rounded-full",
-          isVeg ? "bg-green-600" : "bg-red-600"
+          isVeg ? "bg-green-600" : "bg-red-600",
         )}
       />
     </span>
   );
 };
+
+const SpiceMark = ({ level }: { level: number }) => (
+  <span
+    aria-label={`Spice level ${level} of 4`}
+    title={`Spice level ${level} of 4`}
+    className="inline-flex items-center gap-0.5"
+  >
+    {Array.from({ length: 4 }).map((_, i) => (
+      <Flame
+        key={i}
+        className={cn(
+          "h-3 w-3",
+          i < level ? "fill-primary text-primary" : "text-muted-foreground/30",
+        )}
+      />
+    ))}
+  </span>
+);
 
 const CATEGORY_LABEL: Record<DishCategory, string> = {
   food: "Food",
@@ -73,19 +92,33 @@ const CATEGORY_LABEL: Record<DishCategory, string> = {
   dessert: "Dessert",
 };
 
-const ProductCard = ({ dish }: { dish: Dish }) => {
-  // ✅ Primary image from the array
+type ProductCardProps = {
+  dish: Dish;
+
+  onQuickAdd?: (dish: Dish) => void;
+};
+
+const ProductCard = ({ dish, onQuickAdd }: ProductCardProps) => {
   const primaryImage = dish.images?.[0] ?? "/placeholder.jpg";
-  // ✅ Optional hover image (second image if available)
   const hoverImage = dish.images?.[1];
+  const isAvailable = dish.isAvailable ?? true;
+
+  const handleQuickAdd = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onQuickAdd?.(dish);
+  };
 
   return (
     <Link
-      href={`/menu/${dish.id}`}
+      href={`/menu/${dish._id}`}
       aria-label={`View details for ${dish.name}`}
-      className="group relative flex flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/15 shadow-[0_10px_45px_-16px_rgba(30,64,110,0.28)] backdrop-blur-2xl backdrop-saturate-150 transition-all duration-500 hover:border-white/90 hover:bg-white/25 hover:shadow-[0_26px_65px_-18px_rgba(30,64,110,0.38)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+      aria-disabled={!isAvailable}
+      className={cn(
+        "group relative flex flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/15 shadow-[0_10px_45px_-16px_rgba(30,64,110,0.28)] backdrop-blur-2xl backdrop-saturate-150 transition-all duration-500 hover:border-white/90 hover:bg-white/25 hover:shadow-[0_26px_65px_-18px_rgba(30,64,110,0.38)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10",
+        !isAvailable && "hover:shadow-[0_10px_45px_-16px_rgba(30,64,110,0.28)]",
+      )}
     >
-      {/* Drifting ice-white smoke inside the glass */}
       <div
         aria-hidden
         className="pointer-events-none absolute -left-10 -top-10 h-36 w-36 rounded-full bg-[radial-gradient(circle,rgba(236,244,255,0.85),transparent_70%)] blur-2xl transition-transform duration-[1400ms] ease-out group-hover:translate-x-3 group-hover:translate-y-2 dark:bg-[radial-gradient(circle,rgba(255,255,255,0.15),transparent_70%)]"
@@ -105,7 +138,6 @@ const ProductCard = ({ dish }: { dish: Dish }) => {
       />
 
       <div className="relative aspect-[4/3] w-full overflow-hidden">
-        {/* ✅ Primary image */}
         <Image
           src={primaryImage}
           alt={dish.name}
@@ -113,35 +145,61 @@ const ProductCard = ({ dish }: { dish: Dish }) => {
           sizes="(min-width: 1024px) 25vw, 50vw"
           className={cn(
             "object-cover transition-all duration-700 ease-out group-hover:scale-[1.06]",
-            // Fade out primary on hover if a hover image exists
-            hoverImage && "group-hover:opacity-0"
+            hoverImage && "group-hover:opacity-0",
+            !isAvailable && "grayscale",
           )}
         />
 
-        {/* ✅ Hover image (2nd image in array) — fades in on hover */}
         {hoverImage && (
           <Image
             src={hoverImage}
-            alt={`${dish.name} alternate`}
+            alt={`${dish.name}, alternate angle`}
             fill
             sizes="(min-width: 1024px) 25vw, 50vw"
-            className="object-cover opacity-0 transition-all duration-700 ease-out group-hover:scale-[1.06] group-hover:opacity-100"
+            className={cn(
+              "object-cover opacity-0 transition-all duration-700 ease-out group-hover:scale-[1.06] group-hover:opacity-100",
+              !isAvailable && "grayscale",
+            )}
           />
         )}
 
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-white/0 via-white/0 to-[rgba(236,244,255,0.35)] opacity-70 transition-opacity duration-500 group-hover:opacity-100" />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent" />
 
-        {/* Category pill — cool misty glass */}
         <span className="absolute left-2 top-2 rounded-full border border-white/60 bg-white/25 px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm backdrop-blur-md backdrop-saturate-150">
           {CATEGORY_LABEL[dish.category] ?? dish.category}
         </span>
 
-        {/* ✅ Featured badge */}
-        {dish.isFeatured && (
+        {dish.isFeatured && isAvailable && (
           <span className="absolute right-2 top-2 rounded-full border border-amber-200/70 bg-amber-400/80 px-2.5 py-1 text-[11px] font-semibold text-amber-950 shadow-sm backdrop-blur-md">
             ★ Featured
           </span>
+        )}
+
+        {!isAvailable && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/45">
+            <span className="rounded-full border border-white/40 bg-black/40 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-white">
+              Currently unavailable
+            </span>
+          </div>
+        )}
+
+        {isAvailable && onQuickAdd && (
+          <button
+            type="button"
+            onClick={handleQuickAdd}
+            aria-label={`Quick add ${dish.name}`}
+            className="
+              absolute bottom-2 right-2 z-20 inline-flex h-9 w-9 items-center justify-center
+              rounded-full bg-primary text-primary-foreground opacity-0 shadow-lg
+              transition-all duration-300
+              group-hover:opacity-100
+              hover:scale-110 hover:bg-primary/90
+              focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white
+            "
+          >
+            <Plus className="h-4 w-4" />
+          </button>
         )}
       </div>
 
@@ -153,15 +211,25 @@ const ProductCard = ({ dish }: { dish: Dish }) => {
           <DietMark diet={dish.diet} />
         </div>
 
-        {/* ✅ Description */}
         <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">
           {dish.description}
         </p>
 
-        {/* ✅ Price only — no button */}
-        <div className="mt-4 flex items-center justify-between">
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+          {typeof dish.rating === "number" && (
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
+              <Star className="h-3.5 w-3.5 fill-primary text-primary" />
+              {dish.rating.toFixed(1)}
+            </span>
+          )}
+          {typeof dish.spiceLevel === "number" && dish.spiceLevel > 0 && (
+            <SpiceMark level={dish.spiceLevel} />
+          )}
+        </div>
+
+        <div className="mt-3 flex items-center justify-between">
           <span className="font-heading text-base font-semibold text-foreground">
-            ${dish.price.toFixed(2)}
+            {typeof dish.price === "number" ? `$${dish.price.toFixed(2)}` : "—"}
           </span>
         </div>
       </div>

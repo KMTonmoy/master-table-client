@@ -2,7 +2,10 @@
 
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
+/* Bug fix: "shadcn/tailwind.css" is not a real package export and will fail
+   your build. shadcn/ui components are just Tailwind utility classes reading
+   the CSS custom properties defined below — no separate stylesheet import
+   is needed. */
 
 @custom-variant dark (&:is(.dark *));
 @keyframes shimmer {
@@ -212,6 +215,23 @@
     h2 {
       font-size: 32px;
     }
+  }
+
+  /* Accessibility: respect users who've asked for reduced motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  ::selection {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
   }
 }
 
