@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CalendarClock, Download, FileSpreadsheet, FileText, Plus, RefreshCw } from "lucide-react";
 import {
   Badge,
@@ -15,7 +15,8 @@ import {
   Th,
   Toggle,
 } from "@/components/dashboard/ui";
-import { reports } from "@/lib/dashboard-data";
+import { api } from "@/lib/api";
+import type { Report } from "@/types/dashboard.types";
 
 const TEMPLATES = [
   { name: "Sales summary", desc: "Revenue, orders and average bill", icon: FileText },
@@ -29,10 +30,24 @@ const Reports = () => {
   const [monthly, setMonthly] = useState(true);
   const [daily, setDaily] = useState(false);
   const [generating, setGenerating] = useState<string | null>(null);
+  const [reports, setReports] = useState<Report[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const generate = (name: string) => {
+  const load = () => {
+    setLoading(true);
+    api.reports().then(setReports).finally(() => setLoading(false));
+  };
+
+  useEffect(load, []);
+
+  const generate = async (name: string) => {
     setGenerating(name);
-    window.setTimeout(() => setGenerating(null), 1400);
+    try {
+      await api.generateReport(name);
+      load();
+    } finally {
+      setGenerating(null);
+    }
   };
 
   return (
@@ -41,7 +56,7 @@ const Reports = () => {
         title="Reports"
         description="Create a report in one click, or let Master Table email it to you on a schedule."
         actions={
-          <Button variant="primary" icon={Plus}>
+          <Button variant="primary" icon={Plus} onClick={() => generate("Custom report")}>
             Custom report
           </Button>
         }
@@ -70,41 +85,49 @@ const Reports = () => {
         <Card className="xl:col-span-8">
           <CardHeader title="Recent reports" subtitle="Download anything you generated in the last 30 days" />
           <div className="mt-4">
-            <Table>
-              <thead>
-                <tr>
-                  <Th>Report</Th>
-                  <Th>Period</Th>
-                  <Th>Format</Th>
-                  <Th>Size</Th>
-                  <Th>Updated</Th>
-                  <Th className="w-28" />
-                </tr>
-              </thead>
-              <tbody>
-                {reports.map((r) => (
-                  <tr key={r.id} className="transition-colors hover:bg-foreground/[0.03]">
-                    <Td>
-                      <p className="font-medium">{r.name}</p>
-                      <p className="text-xs text-muted-foreground">{r.desc}</p>
-                    </Td>
-                    <Td className="text-muted-foreground">{r.range}</Td>
-                    <Td>
-                      <Badge tone="gold" dot={false}>
-                        {r.format}
-                      </Badge>
-                    </Td>
-                    <Td className="tabular-nums text-muted-foreground">{r.size}</Td>
-                    <Td className="text-muted-foreground">{r.updated}</Td>
-                    <Td>
-                      <Button size="sm" icon={Download}>
-                        Download
-                      </Button>
-                    </Td>
-                  </tr>
+            {loading ? (
+              <div className="space-y-2 p-5">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-12 w-full animate-pulse rounded-xl bg-foreground/5" />
                 ))}
-              </tbody>
-            </Table>
+              </div>
+            ) : (
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>Report</Th>
+                    <Th>Period</Th>
+                    <Th>Format</Th>
+                    <Th>Size</Th>
+                    <Th>Updated</Th>
+                    <Th className="w-28" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {reports.map((r) => (
+                    <tr key={r.id} className="transition-colors hover:bg-foreground/[0.03]">
+                      <Td>
+                        <p className="font-medium">{r.name}</p>
+                        <p className="text-xs text-muted-foreground">{r.desc}</p>
+                      </Td>
+                      <Td className="text-muted-foreground">{r.range}</Td>
+                      <Td>
+                        <Badge tone="gold" dot={false}>
+                          {r.format}
+                        </Badge>
+                      </Td>
+                      <Td className="tabular-nums text-muted-foreground">{r.size}</Td>
+                      <Td className="text-muted-foreground">{r.updated}</Td>
+                      <Td>
+                        <Button size="sm" icon={Download}>
+                          Download
+                        </Button>
+                      </Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
           </div>
         </Card>
 

@@ -1,49 +1,45 @@
 import type { LucideIcon } from "lucide-react";
 
-export type DashboardNavItem = {
-  name: string;
-  href: string;
-  icon: LucideIcon;
-  /** Small pill shown on the right of the item, e.g. a count */
-  badge?: string;
-};
-
-export type Trend = "up" | "down";
-
 export type OrderStatus =
   | "Pending"
   | "Preparing"
   | "Out for delivery"
   | "Delivered"
   | "Cancelled";
+export type ProductStatus = "Active" | "Low stock" | "Out of stock" | "Draft";
+export type CustomerTier = "Regular" | "Silver" | "Gold" | "VIP";
+export type OrderChannel = "Dine-in" | "Delivery" | "Pickup";
+
+export type DashboardNavItem = {
+  name: string;
+  href: string;
+  icon: LucideIcon;
+  badge?: string;
+};
 
 export type Order = {
   id: string;
   customer: string;
+  channel: OrderChannel;
+  table: string | null;
+  status: OrderStatus;
+  payment: string;
   items: string[];
   total: number;
-  status: OrderStatus;
-  channel: "Dine-in" | "Delivery" | "Pickup";
-  payment: "Card" | "Cash" | "Wallet";
   time: string;
-  table?: string;
 };
-
-export type ProductStatus = "Active" | "Low stock" | "Out of stock" | "Draft";
 
 export type Product = {
   id: string;
   name: string;
-  emoji: string;
   category: string;
   price: number;
   stock: number;
   sold: number;
   rating: number;
+  emoji: string;
   status: ProductStatus;
 };
-
-export type CustomerTier = "Regular" | "Silver" | "Gold" | "VIP";
 
 export type Customer = {
   id: string;
@@ -59,9 +55,67 @@ export type Customer = {
 export type Category = {
   id: string;
   name: string;
+  description: string;
   emoji: string;
   items: number;
   revenue: number;
   share: number;
-  description: string;
+};
+
+export type Reservation = {
+  id: string;
+  time: string;
+  name: string;
+  guests: number;
+  table: string;
+};
+
+export type ActivityItem = {
+  id: string;
+  text: string;
+  tone: "gold" | "warning" | "success" | "danger";
+  time: string;
+};
+
+export type Report = {
+  id: string;
+  name: string;
+  desc: string;
+  range: string;
+  format: string;
+  size: string;
+  updated: string;
+};
+
+export type DashboardSummary = {
+  revenue: { value: number; delta: string; trend: "up" | "down" };
+  orders: { value: number; delta: string; trend: "up" | "down" };
+  customers: {
+    value: number;
+    delta: string;
+    trend: "up" | "down";
+    newThisMonth: number;
+  };
+  products: { value: number; lowStock: number };
+};
+
+export type RevenueSeries = {
+  data: number[];
+  compare: number[];
+  labels: string[];
+  total: number;
+  delta: string;
+};
+
+export type RestaurantSettings = {
+  id?: string;
+  name: string;
+  tagline: string;
+  email: string;
+  phone: string;
+  address: string;
+  opensAt: string;
+  closesAt: string;
+  currency: string;
+  serviceCharge: number;
 };

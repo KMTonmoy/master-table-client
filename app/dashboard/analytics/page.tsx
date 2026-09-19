@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Clock, Eye, MousePointerClick, Receipt } from "lucide-react";
 import {
   AreaChart,
   BarChart,
-  Button,
   Card,
   CardHeader,
   Donut,
@@ -15,31 +14,34 @@ import {
   Segmented,
   StatCard,
 } from "@/components/dashboard/ui";
-import {
-  HOURS,
-  MONTHS,
-  WEEKDAYS,
-  days30,
-  funnel,
-  heatmap,
-  money,
-  ordersByWeekday,
-  revenue12m,
-  revenue12mPrev,
-  revenue30d,
-  trafficSources,
-} from "@/lib/dashboard-data";
+import { HOURS, WEEKDAYS, money } from "@/lib/dashboard-data";
+import { api } from "@/lib/api";
+import type { RevenueSeries } from "@/types/dashboard.types";
 
 type Range = "30d" | "12m";
-
-const HEAT_MAX = Math.max(...heatmap.flat());
 
 const Analytics = () => {
   const [range, setRange] = useState<Range>("12m");
   const isYear = range === "12m";
-  const data = isYear ? revenue12m : revenue30d;
-  const compare = isYear ? revenue12mPrev : revenue30d.map((v) => Math.round(v * 0.88));
-  const labels = isYear ? MONTHS : days30;
+  const [revenue, setRevenue] = useState<RevenueSeries | null>(null);
+  const [weekdayOrders, setWeekdayOrders] = useState<number[]>([]);
+  const [heatmap, setHeatmap] = useState<{ hours: number[]; grid: number[][] } | null>(null);
+  const [traffic, setTraffic] = useState<{ name: string; value: number; color: string }[]>([]);
+  const [funnel, setFunnel] = useState<{ label: string; value: number }[]>([]);
+
+  useEffect(() => {
+    api.dashboardRevenue(range).then(setRevenue);
+  }, [range]);
+
+  useEffect(() => {
+    api.weekdayOrders().then(setWeekdayOrders);
+    api.heatmap().then(setHeatmap);
+    api.trafficSources().then(setTraffic);
+    api.funnel().then(setFunnel);
+  }, []);
+
+  const heatMax = heatmap ? Math.max(1, ...heatmap.grid.flat()) : 1;
+  const totalTraffic = funnel[0]?.value ?? 0;
 
   return (
     <>
@@ -59,10 +61,15 @@ const Analytics = () => {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Site visits" value="18,420" delta="+14.2%" trend="up" icon={Eye} series={[12, 13, 12.5, 14, 15, 15.8, 17, 18.4]} />
-        <StatCard label="Conversion rate" value="13.5%" delta="+1.4%" trend="up" icon={MousePointerClick} series={[10.2, 10.9, 11.4, 11.8, 12.3, 12.6, 13.1, 13.5]} />
-        <StatCard label="Average bill" value="$27.40" delta="-0.8%" trend="down" icon={Receipt} series={[29, 28.6, 28.9, 28.1, 27.8, 27.6, 27.5, 27.4]} />
-        <StatCard label="Prep time" value="14 min" delta="-6.0%" trend="up" icon={Clock} series={[17, 16.5, 16, 15.4, 15, 14.6, 14.2, 14]} note="Lower is better" />
+        <StatCard label="Site visits" value={totalTraffic.toLocaleString()} icon={Eye} series={[12, 13, 12.5, 14, 15, 15.8, 17, 18.4]} />
+        <StatCard
+          label="Conversion rate"
+          value={funnel.length ? `${Math.round(((funnel[funnel.length - 1]?.value ?? 0) / (totalTraffic || 1)) * 100)}%` : "—"}
+          icon={MousePointerClick}
+          series={[10.2, 10.9, 11.4, 11.8, 12.3, 12.6, 13.1, 13.5]}
+        />
+        <StatCard label="Average bill" value={revenue && revenue.data.length ? money(revenue.total / Math.max(1, weekdayOrders.reduce((a, b) => a + b, 0) || 1)) : "—"} icon={Receipt} series={[29, 28.6, 28.9, 28.1, 27.8, 27.6, 27.5, 27.4]} />
+        <StatCard label="Prep time" value="14 min" icon={Clock} series={[17, 16.5, 16, 15.4, 15, 14.6, 14.2, 14]} note="Lower is better" />
       </div>
 
       <Card className="rounded-[2rem]">
@@ -72,53 +79,61 @@ const Analytics = () => {
           className="sm:px-8 sm:pt-8"
         />
         <div className="px-5 pb-6 pt-8 sm:px-8 sm:pb-8">
-          <AreaChart
-            data={data}
-            compare={compare}
-            labels={labels}
-            height={320}
-            labelEvery={isYear ? 1 : 3}
-            formatValue={(n) => money(n, 0)}
-            formatAxis={(n) => (n >= 1000 ? `$${+(n / 1000).toFixed(1)}k` : `$${n}`)}
-          />
+          {revenue ? (
+            <AreaChart
+              data={revenue.data}
+              compare={revenue.compare}
+              labels={revenue.labels}
+              height={320}
+              labelEvery={isYear ? 1 : 3}
+              formatValue={(n) => money(n, 0)}
+              formatAxis={(n) => (n >= 1000 ? `$${+(n / 1000).toFixed(1)}k` : `$${n}`)}
+            />
+          ) : (
+            <div className="h-[320px] w-full animate-pulse rounded-2xl bg-foreground/5" />
+          )}
         </div>
       </Card>
 
       <div className="grid gap-6 xl:grid-cols-12">
         <Card className="xl:col-span-5">
-          <CardHeader title="Orders by weekday" subtitle="Saturdays are your busiest day" />
+          <CardHeader title="Orders by weekday" subtitle="Which day brings the most orders" />
           <div className="p-5 sm:p-6">
-            <BarChart data={ordersByWeekday} labels={WEEKDAYS} height={230} />
+            {weekdayOrders.length ? <BarChart data={weekdayOrders} labels={WEEKDAYS} height={230} /> : <div className="h-[230px] w-full animate-pulse rounded-2xl bg-foreground/5" />}
           </div>
         </Card>
 
         <Card className="xl:col-span-7">
-          <CardHeader title="Busiest hours" subtitle="Average orders per hour, darker means busier" />
+          <CardHeader title="Busiest hours" subtitle="Orders per hour over the last 90 days, darker means busier" />
           <div className="overflow-x-auto p-5 sm:p-6">
-            <div className="min-w-[520px]">
-              <div className="ml-12 grid grid-cols-12 gap-1.5 pb-2 text-center text-[11px] text-muted-foreground">
-                {HOURS.map((h) => (
-                  <span key={h}>{h}:00</span>
-                ))}
-              </div>
-              <div className="space-y-1.5">
-                {heatmap.map((row, r) => (
-                  <div key={r} className="flex items-center gap-2">
-                    <span className="w-10 text-xs text-muted-foreground">{WEEKDAYS[r]}</span>
-                    <div className="grid flex-1 grid-cols-12 gap-1.5">
-                      {row.map((v, c) => (
-                        <div
-                          key={c}
-                          title={`${WEEKDAYS[r]} ${HOURS[c]}:00 · ${v} orders`}
-                          className="h-9 rounded-lg border border-border/40 transition-transform hover:scale-110"
-                          style={{ background: `color-mix(in oklab, var(--primary) ${Math.round((v / HEAT_MAX) * 100)}%, transparent)` }}
-                        />
-                      ))}
+            {heatmap ? (
+              <div className="min-w-[520px]">
+                <div className="ml-12 grid gap-1.5 pb-2 text-center text-[11px] text-muted-foreground" style={{ gridTemplateColumns: `repeat(${heatmap.hours.length}, minmax(0, 1fr))` }}>
+                  {heatmap.hours.map((h) => (
+                    <span key={h}>{h}:00</span>
+                  ))}
+                </div>
+                <div className="space-y-1.5">
+                  {heatmap.grid.map((row, r) => (
+                    <div key={r} className="flex items-center gap-2">
+                      <span className="w-10 text-xs text-muted-foreground">{WEEKDAYS[r]}</span>
+                      <div className="grid flex-1 gap-1.5" style={{ gridTemplateColumns: `repeat(${heatmap.hours.length}, minmax(0, 1fr))` }}>
+                        {row.map((v, c) => (
+                          <div
+                            key={c}
+                            title={`${WEEKDAYS[r]} ${heatmap.hours[c]}:00 · ${v} orders`}
+                            className="h-9 rounded-lg border border-border/40 transition-transform hover:scale-110"
+                            style={{ background: `color-mix(in oklab, var(--primary) ${Math.round((v / heatMax) * 100)}%, transparent)` }}
+                          />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="h-64 w-full animate-pulse rounded-2xl bg-foreground/5" />
+            )}
           </div>
         </Card>
       </div>
@@ -127,23 +142,25 @@ const Analytics = () => {
         <Card>
           <CardHeader title="Where guests come from" subtitle="Share of site visits by source" />
           <div className="flex flex-col items-center gap-6 p-5 sm:flex-row sm:p-6">
-            <Donut segments={trafficSources.map((t) => ({ label: t.name, value: t.value, color: t.color }))} size={180}>
-              <p className="font-heading text-2xl font-bold text-foreground">18.4k</p>
-              <p className="text-xs text-muted-foreground">visits</p>
-            </Donut>
-            <Legend items={trafficSources.map((t) => ({ label: t.name, value: `${t.value}%`, color: t.color }))} />
+            {traffic.length ? (
+              <>
+                <Donut segments={traffic.map((t) => ({ label: t.name, value: t.value, color: t.color }))} size={180}>
+                  <p className="font-heading text-2xl font-bold text-foreground">{totalTraffic ? `${(totalTraffic / 1000).toFixed(1)}k` : "—"}</p>
+                  <p className="text-xs text-muted-foreground">visits</p>
+                </Donut>
+                <Legend items={traffic.map((t) => ({ label: t.name, value: `${t.value}%`, color: t.color }))} />
+              </>
+            ) : (
+              <div className="h-44 w-44 animate-pulse rounded-full bg-foreground/5" />
+            )}
           </div>
         </Card>
 
         <Card>
-          <CardHeader
-            title="From menu to table"
-            subtitle="How many visitors finish an order"
-            action={<Button size="sm">Details</Button>}
-          />
+          <CardHeader title="From menu to table" subtitle="How many visitors finish an order" />
           <ul className="space-y-5 p-5 sm:p-6">
             {funnel.map((f, i) => {
-              const pct = (f.value / funnel[0].value) * 100;
+              const pct = (f.value / (funnel[0]?.value || 1)) * 100;
               const drop = i > 0 ? Math.round((1 - f.value / funnel[i - 1].value) * 100) : null;
               return (
                 <li key={f.label}>

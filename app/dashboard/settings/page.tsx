@@ -6,6 +6,8 @@ import { Bell, Check, KeyRound, Monitor, Moon, Palette, Store, Sun } from "lucid
 import type { LucideIcon } from "lucide-react";
 import { Avatar, Button, Card, CardHeader, Field, PageHeader, Select, Toggle, inputClass } from "@/components/dashboard/ui";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
+import type { RestaurantSettings } from "@/types/dashboard.types";
 
 type Tab = "restaurant" | "notifications" | "appearance" | "security";
 
@@ -26,58 +28,104 @@ const useSaved = () => {
   return [saved, () => setSaved(true)] as const;
 };
 
-const SaveBar = ({ saved, onSave }: { saved: boolean; onSave: () => void }) => (
+const SaveBar = ({ saved, onSave, saving }: { saved: boolean; onSave: () => void; saving?: boolean }) => (
   <div className="flex items-center justify-end gap-3 border-t border-border/70 px-5 py-4 sm:px-6">
     <span aria-live="polite" className={cn("inline-flex items-center gap-1.5 text-sm text-emerald-600 transition-opacity dark:text-emerald-400", saved ? "opacity-100" : "opacity-0")}>
       <Check className="h-4 w-4" /> Changes saved
     </span>
-    <Button variant="primary" onClick={onSave}>
-      Save changes
+    <Button variant="primary" onClick={onSave} disabled={saving}>
+      {saving ? "Saving…" : "Save changes"}
     </Button>
   </div>
 );
 
+const emptySettings: RestaurantSettings = {
+  name: "",
+  tagline: "",
+  email: "",
+  phone: "",
+  address: "",
+  opensAt: "11:00",
+  closesAt: "23:00",
+  currency: "USD",
+  serviceCharge: 5,
+};
+
 const Restaurant = () => {
   const [saved, save] = useSaved();
+  const [form, setForm] = useState<RestaurantSettings>(emptySettings);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api
+      .settings()
+      .then((s) => s && setForm(s))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const submit = async () => {
+    setSaving(true);
+    try {
+      await api.updateSettings(form);
+      save();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const field = (key: keyof RestaurantSettings) => ({
+    value: form[key] as string,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [key]: e.target.value })),
+  });
+
   return (
     <Card>
       <CardHeader title="Restaurant profile" subtitle="This information appears on your website and receipts." />
       <div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
         <Field label="Restaurant name">
-          <input className={inputClass} defaultValue="Master Table" />
+          <input className={inputClass} disabled={loading} {...field("name")} />
         </Field>
         <Field label="Tagline">
-          <input className={inputClass} defaultValue="Family recipes, wood-fired since 1985." />
+          <input className={inputClass} disabled={loading} {...field("tagline")} />
         </Field>
         <Field label="Contact email">
-          <input type="email" className={inputClass} defaultValue="hello@mastertable.com" />
+          <input type="email" className={inputClass} disabled={loading} {...field("email")} />
         </Field>
         <Field label="Phone">
-          <input type="tel" className={inputClass} defaultValue="+880 1700 000000" />
+          <input type="tel" className={inputClass} disabled={loading} {...field("phone")} />
         </Field>
         <div className="sm:col-span-2">
           <Field label="Address">
-            <input className={inputClass} defaultValue="12 Station Road, Pabna" />
+            <input className={inputClass} disabled={loading} {...field("address")} />
           </Field>
         </div>
         <Field label="Opens at">
-          <input type="time" className={inputClass} defaultValue="11:00" />
+          <input type="time" className={inputClass} disabled={loading} {...field("opensAt")} />
         </Field>
         <Field label="Closes at">
-          <input type="time" className={inputClass} defaultValue="23:00" />
+          <input type="time" className={inputClass} disabled={loading} {...field("closesAt")} />
         </Field>
         <Field label="Currency">
-          <Select defaultValue="USD">
+          <Select value={form.currency} disabled={loading} onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}>
             <option value="USD">US dollar ($)</option>
             <option value="BDT">Bangladeshi taka (৳)</option>
             <option value="EUR">Euro (€)</option>
           </Select>
         </Field>
         <Field label="Service charge" hint="Added to dine-in orders.">
-          <input type="number" min={0} max={30} className={inputClass} defaultValue={5} />
+          <input
+            type="number"
+            min={0}
+            max={30}
+            className={inputClass}
+            disabled={loading}
+            value={form.serviceCharge}
+            onChange={(e) => setForm((f) => ({ ...f, serviceCharge: Number(e.target.value) }))}
+          />
         </Field>
       </div>
-      <SaveBar saved={saved} onSave={save} />
+      <SaveBar saved={saved} onSave={submit} saving={saving} />
     </Card>
   );
 };

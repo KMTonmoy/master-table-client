@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Crown, Download, Mail, MapPin, Plus, Repeat, UserPlus, Users } from "lucide-react";
 import {
   Avatar,
@@ -10,6 +10,7 @@ import {
   CardHeader,
   Donut,
   EmptyState,
+  Field,
   Legend,
   PageHeader,
   SearchInput,
@@ -18,10 +19,12 @@ import {
   Table,
   Td,
   Th,
+  inputClass,
   tierTone,
 } from "@/components/dashboard/ui";
-import { customers, money } from "@/lib/dashboard-data";
-import type { CustomerTier } from "@/types/dashboard.types";
+import { money } from "@/lib/dashboard-data";
+import { api } from "@/lib/api";
+import type { Customer, CustomerTier } from "@/types/dashboard.types";
 
 type Filter = "All" | CustomerTier;
 
@@ -35,6 +38,17 @@ const TIER_COLORS: Record<CustomerTier, string> = {
 const Customers = () => {
   const [filter, setFilter] = useState<Filter>("All");
   const [query, setQuery] = useState("");
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ name: "", email: "", city: "" });
+
+  const load = () => {
+    setLoading(true);
+    api.customers().then(setCustomers).finally(() => setLoading(false));
+  };
+
+  useEffect(load, []);
 
   const filtered = useMemo(
     () =>
@@ -43,7 +57,7 @@ const Customers = () => {
           (filter === "All" || c.tier === filter) &&
           `${c.name} ${c.email} ${c.city}`.toLowerCase().includes(query.trim().toLowerCase()),
       ),
-    [filter, query],
+    [customers, filter, query],
   );
 
   const tiers = (["VIP", "Gold", "Silver", "Regular"] as CustomerTier[]).map((t) => ({
@@ -52,6 +66,17 @@ const Customers = () => {
     color: TIER_COLORS[t],
   }));
   const top = [...customers].sort((a, b) => b.spent - a.spent).slice(0, 4);
+  const totalSpent = customers.reduce((a, c) => a + c.spent, 0);
+  const avgSpend = customers.length ? totalSpent / customers.length : 0;
+  const returning = customers.length ? Math.round((customers.filter((c) => c.orders > 1).length / customers.length) * 100) : 0;
+
+  const submit = async () => {
+    if (!form.name.trim() || !form.email.trim()) return;
+    await api.createCustomer(form);
+    setForm({ name: "", email: "", city: "" });
+    setAdding(false);
+    load();
+  };
 
   return (
     <>
@@ -61,18 +86,42 @@ const Customers = () => {
         actions={
           <>
             <Button icon={Download}>Export</Button>
-            <Button variant="primary" icon={Plus}>
+            <Button variant="primary" icon={Plus} onClick={() => setAdding((v) => !v)}>
               Add customer
             </Button>
           </>
         }
       />
 
+      {adding && (
+        <Card className="p-5 sm:p-6">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Full name">
+              <input className={inputClass} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} autoFocus />
+            </Field>
+            <Field label="Email">
+              <input type="email" className={inputClass} value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+            </Field>
+            <Field label="City">
+              <input className={inputClass} value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} />
+            </Field>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <Button variant="primary" disabled={!form.name.trim() || !form.email.trim()} onClick={submit}>
+              Save customer
+            </Button>
+            <Button variant="ghost" onClick={() => setAdding(false)}>
+              Cancel
+            </Button>
+          </div>
+        </Card>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total customers" value="3,472" delta="+4.9%" trend="up" icon={Users} series={[30, 34, 33, 38, 41, 40, 46, 49]} />
-        <StatCard label="New this month" value="182" delta="+12.0%" trend="up" icon={UserPlus} series={[10, 14, 12, 18, 16, 21, 19, 24]} />
-        <StatCard label="Returning rate" value="64%" delta="+2.1%" trend="up" icon={Repeat} series={[58, 59, 60, 61, 61, 62, 63, 64]} />
-        <StatCard label="Average spend" value="$27.40" delta="-0.8%" trend="down" icon={Crown} series={[29, 28.6, 28.9, 28.1, 27.8, 27.6, 27.5, 27.4]} />
+        <StatCard label="Total customers" value={customers.length.toLocaleString()} icon={Users} />
+        <StatCard label="New this month" value={customers.filter((c) => c.orders <= 2).length.toLocaleString()} icon={UserPlus} />
+        <StatCard label="Returning rate" value={`${returning}%`} icon={Repeat} />
+        <StatCard label="Average spend" value={money(avgSpend)} icon={Crown} />
       </div>
 
       <div className="grid items-start gap-6 xl:grid-cols-12">
@@ -86,7 +135,13 @@ const Customers = () => {
             <SearchInput value={query} onChange={setQuery} placeholder="Search name, email or city" className="w-full sm:w-72" />
           </div>
 
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="space-y-2 p-5">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-12 w-full animate-pulse rounded-xl bg-foreground/5" />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
             <EmptyState title="No customers found" hint="Try another tier or a different search term." />
           ) : (
             <div className="border-t border-border/70">

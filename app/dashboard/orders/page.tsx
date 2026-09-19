@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Bike, Check, CreditCard, Download, Printer, Store, Utensils, X } from "lucide-react";
 import {
   Avatar,
@@ -18,14 +18,15 @@ import {
   orderTone,
 } from "@/components/dashboard/ui";
 import { cn } from "@/lib/utils";
-import { money, orders } from "@/lib/dashboard-data";
+import { money } from "@/lib/dashboard-data";
+import { api } from "@/lib/api";
 import type { Order, OrderStatus } from "@/types/dashboard.types";
 
 type Filter = "All" | OrderStatus;
 
 const CHANNEL_ICON = { "Dine-in": Utensils, Delivery: Bike, Pickup: Store } as const;
 
-const OrderDetail = ({ order }: { order: Order }) => {
+const OrderDetail = ({ order, onAdvance }: { order: Order; onAdvance: (order: Order) => void }) => {
   const cancelled = order.status === "Cancelled";
   const flow: OrderStatus[] =
     order.channel === "Delivery"
@@ -111,7 +112,7 @@ const OrderDetail = ({ order }: { order: Order }) => {
         </dl>
 
         <div className="flex gap-2">
-          <Button variant="primary" className="flex-1" disabled={cancelled || order.status === "Delivered"}>
+          <Button variant="primary" className="flex-1" disabled={cancelled || order.status === "Delivered"} onClick={() => onAdvance(order)}>
             Move to next step
           </Button>
           <Button icon={Printer} aria-label="Print receipt" />
@@ -124,33 +125,67 @@ const OrderDetail = ({ order }: { order: Order }) => {
 const Orders = () => {
   const [filter, setFilter] = useState<Filter>("All");
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState(orders[0].id);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = () => {
+    setLoading(true);
+    setError(null);
+    api
+      .orders()
+      .then((list) => {
+        setOrders(list);
+        setSelectedId((prev) => prev ?? list[0]?.id ?? null);
+      })
+      .catch((err) => setError(err.message || "Failed to load orders"))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(load, []);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { All: orders.length };
     orders.forEach((o) => (c[o.status] = (c[o.status] ?? 0) + 1));
     return c;
-  }, []);
+  }, [orders]);
 
   const filtered = orders.filter(
     (o) =>
       (filter === "All" || o.status === filter) &&
       `${o.id} ${o.customer}`.toLowerCase().includes(query.trim().toLowerCase()),
   );
-  const selected = orders.find((o) => o.id === selectedId) ?? orders[0];
+  const selected = orders.find((o) => o.id === selectedId) ?? filtered[0] ?? null;
+
+  const advance = async (order: Order) => {
+    const flow: OrderStatus[] =
+      order.channel === "Delivery"
+        ? ["Pending", "Preparing", "Out for delivery", "Delivered"]
+        : ["Pending", "Preparing", "Delivered"];
+    const next = flow[flow.indexOf(order.status) + 1];
+    if (!next) return;
+    setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, status: next } : o)));
+    try {
+      await api.updateOrder(order.id, { status: next });
+    } catch {
+      load();
+    }
+  };
 
   return (
     <>
       <PageHeader
         title="Orders"
         description="Follow every order from the kitchen to the table or the doorstep."
-        actions={
-          <>
-            <Button icon={Download}>Export</Button>
-            <Button variant="primary">New order</Button>
-          </>
-        }
+        actions={<Button icon={Download}>Export</Button>}
       />
+
+      {error && (
+        <Card className="border-destructive/40 p-5 text-sm text-destructive">
+          Could not reach the API: {error}
+        </Card>
+      )}
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_400px] 2xl:grid-cols-[minmax(0,1fr)_440px]">
         <Card>
@@ -167,7 +202,13 @@ const Orders = () => {
             <SearchInput value={query} onChange={setQuery} placeholder="Search order or guest" className="w-full sm:w-64" />
           </div>
 
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="space-y-2 p-5">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-12 w-full animate-pulse rounded-xl bg-foreground/5" />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
             <EmptyState title="No orders here" hint="There are no orders with this status right now. New orders show up as soon as they are placed." />
           ) : (
             <div className="border-t border-border/70">
@@ -184,7 +225,7 @@ const Orders = () => {
                 <tbody>
                   {filtered.map((o) => {
                     const Icon = CHANNEL_ICON[o.channel];
-                    const active = o.id === selected.id;
+                    const active = selected && o.id === selected.id;
                     return (
                       <tr
                         key={o.id}
@@ -226,7 +267,7 @@ const Orders = () => {
           )}
         </Card>
 
-        <OrderDetail order={selected} />
+        {selected && <OrderDetail order={selected} onAdvance={advance} />}
       </div>
     </>
   );
