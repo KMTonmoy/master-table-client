@@ -88,7 +88,6 @@ const Categories = () => {
 
   return (
     <section className="section relative overflow-hidden">
-      {/* Ambient background mist so the glass has something to blur */}
       <div
         aria-hidden
         className="pointer-events-none absolute -top-24 left-1/4 h-72 w-72 rounded-full bg-sky-100/60 blur-3xl dark:bg-white/10"
@@ -99,7 +98,6 @@ const Categories = () => {
       />
 
       <div className="content-wrap relative px-5">
-        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -122,26 +120,40 @@ const Categories = () => {
           </Link>
         </motion.div>
 
-        {/* Cards */}
         <motion.div
           variants={container}
           initial="hidden"
           whileInView="show"
-          viewport={{ once: true, amount: 0.2 }}
-          className="mt-8 flex gap-4 overflow-x-auto pb-2 lg:grid lg:grid-cols-5 lg:overflow-visible"
+          viewport={{ once: true, amount: 0.15 }}
+          className="
+            mt-8 grid gap-4
+            grid-cols-2
+            sm:grid-cols-2
+            md:grid-cols-3
+            lg:grid-cols-5
+          "
         >
           {CATEGORIES.map((category, i) => (
             <motion.div
               key={category.name}
               variants={cardVariant}
-              className="w-[160px] shrink-0 lg:w-auto"
+              whileHover={{ y: -6 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ duration: 0.3, ease: EASE }}
+              className="w-full"
             >
-              <Link href={category.href} className="group block">
-                {/* Frosted cool-glass card */}
+              <Link href={category.href} className="group block h-full">
                 <div
-                  className="relative overflow-hidden rounded-3xl border border-white/70 bg-white/15 p-2 shadow-[0_10px_45px_-14px_rgba(30,64,110,0.25)] backdrop-blur-3xl backdrop-saturate-150 transition-all duration-500 group-hover:border-white/90 group-hover:bg-white/25 group-hover:shadow-[0_28px_70px_-18px_rgba(30,64,110,0.35)] dark:border-white/10 dark:bg-white/5 dark:group-hover:bg-white/10"
+                  className="
+                    relative h-full overflow-hidden rounded-3xl border border-white/70 bg-white/15 p-2
+                    shadow-[0_10px_45px_-14px_rgba(30,64,110,0.25)]
+                    backdrop-blur-3xl backdrop-saturate-150
+                    transition-all duration-500
+                    group-hover:border-white/90 group-hover:bg-white/25
+                    group-hover:shadow-[0_28px_70px_-18px_rgba(30,64,110,0.35)]
+                    dark:border-white/10 dark:bg-white/5 dark:group-hover:bg-white/10
+                  "
                 >
-                  {/* Layered "water smoke" — cool ice-white, drifts slowly on hover */}
                   <div
                     aria-hidden
                     className="pointer-events-none absolute -left-10 -top-8 h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(236,244,255,0.9),transparent_70%)] blur-2xl transition-transform duration-[1400ms] ease-out group-hover:translate-x-3 group-hover:translate-y-2 dark:bg-[radial-gradient(circle,rgba(255,255,255,0.18),transparent_70%)]"
@@ -154,51 +166,41 @@ const Categories = () => {
                     aria-hidden
                     className="pointer-events-none absolute left-1/3 top-1/2 h-24 w-24 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.55),transparent_70%)] opacity-0 blur-2xl transition-opacity duration-700 group-hover:opacity-100 dark:bg-[radial-gradient(circle,rgba(255,255,255,0.1),transparent_70%)]"
                   />
-
-                  {/* Soft top sheen, cooled */}
                   <div
                     aria-hidden
                     className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-[rgba(236,244,255,0.7)] to-transparent"
                   />
-                  {/* Hairline top highlight */}
                   <div
                     aria-hidden
                     className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/95 to-transparent"
                   />
-                  {/* Inner glass border for that etched-edge look */}
                   <div
                     aria-hidden
                     className="pointer-events-none absolute inset-[1px] rounded-[calc(1.5rem-1px)] ring-1 ring-inset ring-white/40"
                   />
-
-                  {/* Accent glow blob */}
                   <div
                     aria-hidden
                     className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-0 blur-3xl transition-opacity duration-500 group-hover:opacity-25"
                     style={{ backgroundColor: category.accent }}
                   />
 
-                  {/* Image inside inner rounded frame */}
                   <div className="relative aspect-[4/5] overflow-hidden rounded-2xl">
                     <Image
                       src={category.image}
                       alt={category.name}
                       fill
-                      sizes="(min-width: 1024px) 20vw, 160px"
+                      sizes="(min-width: 1024px) 20vw, (min-width: 640px) 33vw, 50vw"
                       className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.08]"
                     />
 
-                    {/* Dark gradient for legibility */}
                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent opacity-80 transition-opacity duration-500 group-hover:opacity-95" />
 
-                    {/* Dish count pill — cool misty glass */}
-                    <span className="absolute right-2 top-2 rounded-full border border-white/60 bg-white/20 px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm backdrop-blur-md backdrop-saturate-150">
+                    <span className="absolute right-2 top-2 rounded-full border border-white/60 bg-white/20 px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm backdrop-blur-md backdrop-saturate-150 sm:text-[11px]">
                       {category.dishCount} dishes
                     </span>
 
-                    {/* Name + arrow overlay */}
                     <div className="absolute inset-x-0 bottom-0 flex items-end justify-between p-3">
-                      <p className="font-heading text-lg font-semibold text-white drop-shadow-md">
+                      <p className="font-heading text-base font-semibold text-white drop-shadow-md sm:text-lg">
                         {category.name}
                       </p>
                       <span className="flex h-7 w-7 translate-y-1 items-center justify-center rounded-full border border-white/60 bg-white/20 text-xs font-bold text-white opacity-0 backdrop-blur-md backdrop-saturate-150 transition-all duration-500 group-hover:translate-y-0 group-hover:opacity-100">
@@ -207,13 +209,12 @@ const Categories = () => {
                     </div>
                   </div>
 
-                  {/* Caption inside the glass frame */}
                   <div className="relative flex items-center justify-between px-2 pb-1 pt-3">
                     <div>
-                      <p className="font-heading text-base font-semibold text-foreground">
+                      <p className="font-heading text-sm font-semibold text-foreground sm:text-base">
                         {category.name}
                       </p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-[11px] text-muted-foreground sm:text-xs">
                         {category.dishCount} dishes
                       </p>
                     </div>
@@ -228,6 +229,22 @@ const Categories = () => {
               </Link>
             </motion.div>
           ))}
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.5 }}
+          transition={{ duration: 0.5, ease: EASE, delay: 0.3 }}
+          className="mt-6 flex justify-center sm:hidden"
+        >
+          <Link
+            href="/menu"
+            className="inline-flex h-11 items-center gap-2 rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-[0_10px_28px_-10px_rgba(224,165,38,0.55)] transition-all duration-300 hover:scale-[1.03] hover:bg-primary/90"
+          >
+            View full menu
+            <span>→</span>
+          </Link>
         </motion.div>
       </div>
     </section>
