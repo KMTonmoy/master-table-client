@@ -1,45 +1,59 @@
-import type { LucideIcon } from "lucide-react";
+export type UserRole = "user" | "admin";
 
-export type OrderStatus =
-  | "Pending"
-  | "Preparing"
-  | "Out for delivery"
-  | "Delivered"
-  | "Cancelled";
-export type ProductStatus = "Active" | "Low stock" | "Out of stock" | "Draft";
-export type CustomerTier = "Regular" | "Silver" | "Gold" | "VIP";
-export type OrderChannel = "Dine-in" | "Delivery" | "Pickup";
+export type SafeUser = {
+  id: string;
+  name: string;
+  email: string;
+  profileImage?: string;
+  role: UserRole;
+  provider?: string;
+  isVerified?: boolean;
+};
 
 export type DashboardNavItem = {
   name: string;
   href: string;
-  icon: LucideIcon;
+  icon: React.ComponentType<{ className?: string }>;
   badge?: string;
 };
 
-export type Order = {
-  id: string;
-  customer: string;
-  channel: OrderChannel;
-  table: string | null;
-  status: OrderStatus;
-  payment: string;
-  items: string[];
-  total: number;
-  time: string;
-};
+export type ProductStatus = "Active" | "Low stock" | "Out of stock" | "Draft";
 
 export type Product = {
   id: string;
   name: string;
+  emoji?: string;
   category: string;
   price: number;
   stock: number;
   sold: number;
   rating: number;
-  emoji: string;
   status: ProductStatus;
+  description?: string;
+  images?: string[];
+  ingredients?: string[];
+  diet?: string;
+  cuisine?: string;
+  spiceLevel?: number;
+  prepTime?: number;
+  calories?: number;
+  tags?: string[];
+  isFeatured?: boolean;
+  isAvailable?: boolean;
 };
+
+export type Category = {
+  id: string;
+  name: string;
+  description: string;
+  emoji: string;
+  items: number;
+  revenue: number;
+  share: number;
+  image?: string;
+};
+
+export type CustomerTier = "VIP" | "Gold" | "Silver" | "Regular";
 
 export type Customer = {
   id: string;
@@ -52,29 +66,48 @@ export type Customer = {
   lastVisit: string;
 };
 
-export type Category = {
+export type OrderStatus =
+  | "Pending"
+  | "Preparing"
+  | "Out for delivery"
+  | "Delivered"
+  | "Cancelled";
+
+export type OrderChannel = "Delivery" | "Pickup" | "Dine-in";
+
+export type Order = {
   id: string;
-  name: string;
-  description: string;
-  emoji: string;
-  items: number;
-  revenue: number;
-  share: number;
+  customer: string;
+  email?: string | null;
+  userId?: string | null;
+  items: string[];
+  total: number;
+  status: OrderStatus;
+  channel: OrderChannel;
+  payment: string;
+  table?: string | number | null;
+  time: string;
 };
+
+export type ReservationStatus =
+  | "Confirmed"
+  | "Pending"
+  | "Cancelled"
+  | "Completed";
 
 export type Reservation = {
   id: string;
-  time: string;
   name: string;
-  guests: number;
-  table: string;
-};
-
-export type ActivityItem = {
-  id: string;
-  text: string;
-  tone: "gold" | "warning" | "success" | "danger";
+  email: string;
+  phone: string;
+  date: string;
   time: string;
+  guests: number;
+  occasion?: string;
+  notes?: string;
+  status: ReservationStatus;
+  table?: string | null;
+  createdAt?: string;
 };
 
 export type Report = {
@@ -82,29 +115,9 @@ export type Report = {
   name: string;
   desc: string;
   range: string;
-  format: string;
+  format: "PDF" | "XLSX" | "CSV";
   size: string;
   updated: string;
-};
-
-export type DashboardSummary = {
-  revenue: { value: number; delta: string; trend: "up" | "down" };
-  orders: { value: number; delta: string; trend: "up" | "down" };
-  customers: {
-    value: number;
-    delta: string;
-    trend: "up" | "down";
-    newThisMonth: number;
-  };
-  products: { value: number; lowStock: number };
-};
-
-export type RevenueSeries = {
-  data: number[];
-  compare: number[];
-  labels: string[];
-  total: number;
-  delta: string;
 };
 
 export type RestaurantSettings = {
@@ -118,4 +131,46 @@ export type RestaurantSettings = {
   closesAt: string;
   currency: string;
   serviceCharge: number;
+  updatedAt?: string;
 };
+
+export type Trend = "up" | "down";
+
+export type SummaryBlock = {
+  value: number;
+  delta: string;
+  trend: Trend;
+};
+
+export type DashboardSummary = {
+  revenue: SummaryBlock;
+  orders: SummaryBlock;
+  customers: SummaryBlock & { newThisMonth: number };
+  products: { value: number; lowStock: number };
+};
+
+export type RevenueSeries = {
+  data: number[];
+  compare: number[];
+  labels: string[];
+  total: number;
+  delta: string;
+};
+
+export type ActivityTone = "gold" | "warning" | "success" | "danger";
+
+export type ActivityItem = {
+  id: string;
+  text: string;
+  tone: ActivityTone;
+  time: string;
+};
+
+export type TopDish = {
+  name: string;
+  image: string;
+  sold: number;
+  share: number;
+};
+
+export type DashboardRange = "7d" | "30d" | "12m";

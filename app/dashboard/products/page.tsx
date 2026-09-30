@@ -1,15 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  Download,
-  LayoutGrid,
-  List,
-  Pencil,
-  Plus,
-  Star,
-  Trash2,
-} from "lucide-react";
+import axios from "axios";
+import { Download, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import {
   Badge,
   Button,
@@ -23,14 +16,21 @@ import {
   Th,
   productTone,
 } from "@/components/dashboard/ui";
-import { cn } from "@/lib/utils";
-import { money } from "@/lib/dashboard-data";
-import { api } from "@/lib/api";
-import type { Category, Product, ProductStatus } from "@/types/dashboard.types";
+import { money } from "@/lib/format";
+import type { Category } from "@/types/dashboard.types";
+import type {
+  Product,
+  ProductFormValues,
+  ProductRow,
+  ProductStatus,
+} from "@/types/products.types";
 import AddProductModal, {
-  type ProductFormValues,
   type EditableProduct,
 } from "@/components/dashboard/AddProductModal";
+
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+).replace(/\/+$/, "");
 
 const STATUSES: ("All" | ProductStatus)[] = [
   "All",
@@ -40,71 +40,77 @@ const STATUSES: ("All" | ProductStatus)[] = [
   "Draft",
 ];
 
-type ProductRow = Product & {
-  images?: string[];
-  description?: string;
-  ingredients?: string[];
-  diet?: string;
-  cuisine?: string;
-  spiceLevel?: number;
-  prepTime?: number;
-  calories?: number;
-  tags?: string[];
-  isFeatured?: boolean;
-  isAvailable?: boolean;
-};
-
-const normalizeProduct = (p: any): ProductRow => ({
-  id: String(p?.id ?? p?._id ?? ""),
-  name: p?.name ?? "Unnamed",
-  category: p?.category ?? "",
-  price: Number(p?.price ?? 0),
-  stock: Number(p?.stock ?? 0),
-  sold: Number(p?.sold ?? 0),
-  rating: Number(p?.rating ?? 0),
-  emoji: p?.emoji ?? "🍽️",
-  status: (p?.status ?? "Draft") as ProductStatus,
-  images: Array.isArray(p?.images) ? p.images : [],
-  description: p?.description ?? "",
-  ingredients: Array.isArray(p?.ingredients) ? p.ingredients : [],
-  diet: p?.diet ?? "",
-  cuisine: p?.cuisine ?? "",
-  spiceLevel: Number(p?.spiceLevel ?? 0),
-  prepTime: Number(p?.prepTime ?? 0),
-  calories: Number(p?.calories ?? 0),
-  tags: Array.isArray(p?.tags) ? p.tags : [],
-  isFeatured: !!p?.isFeatured,
-  isAvailable: p?.isAvailable !== false,
+const normalizeProduct = (
+  p: Partial<Product> & { _id?: string },
+): ProductRow => ({
+  id: String(p.id ?? p._id ?? ""),
+  name: p.name ?? "Unnamed",
+  category: p.category ?? "",
+  price: Number(p.price ?? 0),
+  stock: Number(p.stock ?? 0),
+  sold: Number(p.sold ?? 0),
+  rating: Number(p.rating ?? 0),
+  emoji: p.emoji ?? "🍽️",
+  status: (p.status ?? "Draft") as ProductStatus,
+  images: Array.isArray(p.images) ? p.images : [],
+  description: p.description ?? "",
+  ingredients: Array.isArray(p.ingredients) ? p.ingredients : [],
+  diet: p.diet ?? "",
+  cuisine: p.cuisine ?? "",
+  spiceLevel: Number(p.spiceLevel ?? 0),
+  prepTime: Number(p.prepTime ?? 0),
+  calories: Number(p.calories ?? 0),
+  tags: Array.isArray(p.tags) ? p.tags : [],
+  isFeatured: !!p.isFeatured,
+  isAvailable: p.isAvailable !== false,
 });
+
+const extractError = (err: unknown, fallback: string) => {
+  if (axios.isAxiosError(err)) {
+    return (
+      err.response?.data?.error ||
+      err.response?.data?.message ||
+      err.message ||
+      fallback
+    );
+  }
+  return err instanceof Error ? err.message : fallback;
+};
 
 const Products = () => {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [status, setStatus] = useState<"All" | ProductStatus>("All");
-  const [view, setView] = useState<"grid" | "table">("grid");
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<ProductRow | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    const load = async () => {
+    (async () => {
       try {
-        const [p, c] = await Promise.all([api.products(), api.categories()]);
+        const [pRes, cRes] = await Promise.all([
+          axios.get(`${API_URL}/api/products`, { withCredentials: true }),
+          axios.get(`${API_URL}/api/categories`, { withCredentials: true }),
+        ]);
         if (cancelled) return;
-        setProducts((p || []).map(normalizeProduct));
-        setCategories(c || []);
-      } catch {
-        if (!cancelled) setProducts([]);
+        setProducts(
+          (Array.isArray(pRes.data) ? pRes.data : []).map(normalizeProduct),
+        );
+        setCategories(Array.isArray(cRes.data) ? cRes.data : []);
+        setError(null);
+      } catch (err) {
+        if (cancelled) return;
+        setError(extractError(err, "Failed to load products"));
+        setProducts([]);
       } finally {
         if (!cancelled) setLoading(false);
       }
-    };
-
-    load();
+    })();
 
     return () => {
       cancelled = true;
@@ -112,9 +118,19 @@ const Products = () => {
   }, []);
 
   const reload = async () => {
-    const [p, c] = await Promise.all([api.products(), api.categories()]);
-    setProducts((p || []).map(normalizeProduct));
-    setCategories(c || []);
+    try {
+      const [pRes, cRes] = await Promise.all([
+        axios.get(`${API_URL}/api/products`, { withCredentials: true }),
+        axios.get(`${API_URL}/api/categories`, { withCredentials: true }),
+      ]);
+      setProducts(
+        (Array.isArray(pRes.data) ? pRes.data : []).map(normalizeProduct),
+      );
+      setCategories(Array.isArray(cRes.data) ? cRes.data : []);
+      setError(null);
+    } catch (err) {
+      setError(extractError(err, "Failed to refresh products"));
+    }
   };
 
   const filtered = useMemo(
@@ -184,17 +200,25 @@ const Products = () => {
   });
 
   const handleCreate = async (form: ProductFormValues) => {
-    await api.createProduct({
-      ...buildPayload(form),
-      stock: 0,
-      emoji: "🍽️",
-    });
+    await axios.post(
+      `${API_URL}/api/products`,
+      {
+        ...buildPayload(form),
+        stock: 0,
+        emoji: "🍽️",
+      },
+      { withCredentials: true },
+    );
     await reload();
   };
 
   const handleUpdate = async (form: ProductFormValues) => {
     if (!editing) return;
-    await api.updateProduct(editing.id, buildPayload(form));
+    await axios.patch(
+      `${API_URL}/api/products/${editing.id}`,
+      buildPayload(form),
+      { withCredentials: true },
+    );
     await reload();
   };
 
@@ -206,7 +230,9 @@ const Products = () => {
   const remove = async (id: string) => {
     setProducts((prev) => prev.filter((p) => p.id !== id));
     try {
-      await api.deleteProduct(id);
+      await axios.delete(`${API_URL}/api/products/${id}`, {
+        withCredentials: true,
+      });
     } catch {
       await reload();
     }
@@ -226,6 +252,12 @@ const Products = () => {
           </>
         }
       />
+
+      {error && (
+        <Card className="border-destructive/40 p-5 text-sm text-destructive">
+          Could not reach the API: {error}
+        </Card>
+      )}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {summary.map((s) => (
@@ -271,39 +303,14 @@ const Products = () => {
               </option>
             ))}
           </Select>
-
-          <div className="ml-auto inline-flex rounded-full border border-border bg-card/60 p-1">
-            {(
-              [
-                { v: "grid", icon: LayoutGrid, label: "Grid view" },
-                { v: "table", icon: List, label: "Table view" },
-              ] as const
-            ).map(({ v, icon: Icon, label }) => (
-              <button
-                key={v}
-                type="button"
-                aria-label={label}
-                aria-pressed={view === v}
-                onClick={() => setView(v)}
-                className={cn(
-                  "inline-flex h-8 w-9 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
-                  view === v
-                    ? "bg-primary text-[#2B1B10]"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <Icon className="h-4 w-4" />
-              </button>
-            ))}
-          </div>
         </div>
 
         {loading ? (
-          <div className="grid gap-4 border-t border-border/70 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-3 2xl:grid-cols-4">
+          <div className="space-y-2 border-t border-border/70 p-5">
             {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={i}
-                className="h-56 w-full animate-pulse rounded-2xl bg-foreground/5"
+                className="h-14 w-full animate-pulse rounded-xl bg-foreground/5"
               />
             ))}
           </div>
@@ -312,74 +319,6 @@ const Products = () => {
             title="No dishes match"
             hint="Try a different search, or clear the category and status filters."
           />
-        ) : view === "grid" ? (
-          <div className="grid gap-4 border-t border-border/70 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-3 2xl:grid-cols-4">
-            {filtered.map((p) => {
-              const cover = p.images?.[0];
-              return (
-                <article
-                  key={p.id}
-                  className="group flex flex-col overflow-hidden rounded-2xl border border-border/80 bg-background/40 transition-colors hover:border-primary/40"
-                >
-                  <div className="relative flex h-36 items-center justify-center bg-gradient-to-br from-primary/25 via-primary/10 to-transparent">
-                    {cover ? (
-                      <img
-                        src={cover}
-                        alt={p.name}
-                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      />
-                    ) : (
-                      <span className="text-6xl drop-shadow-lg transition-transform duration-300 group-hover:scale-110">
-                        {p.emoji}
-                      </span>
-                    )}
-                    <div className="absolute left-3 top-3">
-                      <Badge tone={productTone(p.status)}>{p.status}</Badge>
-                    </div>
-                    <div className="absolute right-3 top-3 flex gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(p)}
-                        aria-label={`Edit ${p.name}`}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-background/70 text-muted-foreground backdrop-blur hover:text-primary"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => remove(p.id)}
-                        aria-label={`Delete ${p.name}`}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-background/70 text-muted-foreground backdrop-blur hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex flex-1 flex-col p-4">
-                    <p className="text-xs text-muted-foreground">
-                      {p.category}
-                    </p>
-                    <h3 className="mt-0.5 font-heading text-lg font-semibold text-foreground">
-                      {p.name}
-                    </h3>
-                    <div className="mt-3 flex items-center justify-between text-sm">
-                      <span className="font-heading text-xl font-bold text-primary">
-                        {money(p.price)}
-                      </span>
-                      <span className="inline-flex items-center gap-1 text-muted-foreground">
-                        <Star className="h-3.5 w-3.5 fill-primary text-primary" />
-                        {Number(p.rating ?? 0).toFixed(1)}
-                      </span>
-                    </div>
-                    <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3 text-xs text-muted-foreground">
-                      <span>{Number(p.sold ?? 0).toLocaleString()} sold</span>
-                      <span>{Number(p.stock ?? 0)} in stock</span>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
         ) : (
           <div className="border-t border-border/70">
             <Table>
@@ -390,6 +329,7 @@ const Products = () => {
                   <Th>Price</Th>
                   <Th>Stock</Th>
                   <Th>Sold</Th>
+                  <Th>Rating</Th>
                   <Th>Status</Th>
                   <Th className="w-24" />
                 </tr>
@@ -406,26 +346,46 @@ const Products = () => {
                           <img
                             src={p.images[0]}
                             alt={p.name}
-                            className="h-10 w-10 rounded-xl object-cover"
+                            className="h-11 w-11 rounded-xl object-cover"
                           />
                         ) : (
-                          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-xl">
+                          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/15 text-xl">
                             {p.emoji}
                           </span>
                         )}
-                        <div>
-                          <p className="font-medium">{p.name}</p>
-                          <p className="text-xs text-muted-foreground">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{p.name}</p>
+                          <p className="truncate text-xs text-muted-foreground">
                             {p.id}
                           </p>
                         </div>
                       </div>
                     </Td>
                     <Td className="text-muted-foreground">{p.category}</Td>
-                    <Td className="tabular-nums">{money(p.price)}</Td>
-                    <Td className="tabular-nums">{Number(p.stock ?? 0)}</Td>
+                    <Td className="font-medium tabular-nums">
+                      {money(p.price)}
+                    </Td>
+                    <Td className="tabular-nums">
+                      <span
+                        className={
+                          Number(p.stock ?? 0) === 0
+                            ? "text-destructive"
+                            : Number(p.stock ?? 0) <= 10
+                              ? "text-amber-500"
+                              : ""
+                        }
+                      >
+                        {Number(p.stock ?? 0)}
+                      </span>
+                    </Td>
                     <Td className="tabular-nums">
                       {Number(p.sold ?? 0).toLocaleString()}
+                    </Td>
+                    <Td>
+                      <span className="inline-flex items-center gap-1 tabular-nums text-muted-foreground">
+                        <Star className="h-3.5 w-3.5 fill-primary text-primary" />
+                        {Number(p.rating ?? 0).toFixed(1)}
+                      </span>
                     </Td>
                     <Td>
                       <Badge tone={productTone(p.status)}>{p.status}</Badge>

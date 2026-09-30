@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import axios from "axios";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BarChart3,
@@ -21,6 +23,10 @@ import {
 import { cn } from "@/lib/utils";
 import type { DashboardNavItem } from "@/types/dashboard.types";
 
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+).replace(/\/+$/, "");
+
 type NavGroup = { title: string; items: DashboardNavItem[] };
 
 const ADMIN_GROUPS: NavGroup[] = [
@@ -28,7 +34,7 @@ const ADMIN_GROUPS: NavGroup[] = [
     title: "Restaurant",
     items: [
       { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-      { name: "Orders", href: "/dashboard/orders", icon: ShoppingBag, badge: "12" },
+      { name: "Orders", href: "/dashboard/orders", icon: ShoppingBag },
       { name: "Products", href: "/dashboard/products", icon: Package },
       { name: "Categories", href: "/dashboard/categories", icon: Tag },
       { name: "Customers", href: "/dashboard/customers", icon: Users },
@@ -66,15 +72,85 @@ type SidebarProps = {
   isAdmin?: boolean;
 };
 
-const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileMenuOpen, setIsMobileMenuOpen, isAdmin = true }: SidebarProps) => {
+type DashboardSummary = {
+  orders: { value: number; delta: string; trend: "up" | "down" };
+};
+
+const Sidebar = ({
+  isCollapsed,
+  setIsCollapsed,
+  isMobileMenuOpen,
+  setIsMobileMenuOpen,
+  isAdmin = true,
+}: SidebarProps) => {
   const pathname = usePathname();
+  const router = useRouter();
   const groups = isAdmin ? ADMIN_GROUPS : USER_GROUPS;
 
-  const isActive = (href: string) =>
-    href === "/dashboard" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+  const [pendingCount, setPendingCount] = useState<number | null>(null);
+  const [kitchenOpen, setKitchenOpen] = useState(true);
 
-  const handleLogout = () => {
-    console.log("[Sidebar] Logout");
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const [summaryRes, ordersRes] = await Promise.all([
+          axios.get<DashboardSummary>(`${API_URL}/api/dashboard/summary`, {
+            withCredentials: true,
+          }),
+          axios.get<Array<{ status: string }>>(`${API_URL}/api/orders`, {
+            withCredentials: true,
+          }),
+        ]);
+        if (cancelled) return;
+
+        const orders = Array.isArray(ordersRes.data) ? ordersRes.data : [];
+        const pending = orders.filter(
+          (o) =>
+            o.status === "Pending" ||
+            o.status === "Preparing" ||
+            o.status === "Out for delivery",
+        ).length;
+
+        setPendingCount(pending);
+        setKitchenOpen(true);
+
+        void summaryRes;
+      } catch {
+        if (!cancelled) {
+          setPendingCount(null);
+          setKitchenOpen(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const isActive = (href: string) =>
+    href === "/dashboard"
+      ? pathname === href
+      : pathname === href || pathname.startsWith(`${href}/`);
+
+  const handleLogout = async () => {
+    try {
+      await axios.post(
+        `${API_URL}/api/auth/logout`,
+        {},
+        { withCredentials: true },
+      );
+    } catch {}
+    router.replace("/");
+  };
+
+  const badgeFor = (href: string): string | undefined => {
+    if (href === "/dashboard/orders" && pendingCount && pendingCount > 0) {
+      return pendingCount > 99 ? "99+" : String(pendingCount);
+    }
+    return undefined;
   };
 
   return (
@@ -101,22 +177,29 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileMenuOpen, setIsMobileMen
           "fixed left-0 top-0 z-50 flex h-dvh max-w-[85vw] flex-col",
           "border-r border-border bg-sidebar/95 backdrop-blur-2xl",
           "transition-transform duration-300",
-          isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+          isMobileMenuOpen
+            ? "translate-x-0"
+            : "-translate-x-full lg:translate-x-0",
         )}
       >
-        {/* Brand */}
         <div
           className={cn(
             "flex h-16 shrink-0 items-center border-b border-border px-4",
             isCollapsed ? "justify-center" : "justify-between",
           )}
         >
-          <Link href="/" className="flex items-center gap-3" aria-label="Master Table home">
+          <Link
+            href="/"
+            className="flex items-center gap-3"
+            aria-label="Master Table home"
+          >
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/30">
               <UtensilsCrossed className="h-5 w-5 text-[#2B1B10]" />
             </span>
             {!isCollapsed && (
-              <span className="font-heading text-xl font-bold leading-none tracking-tight text-foreground">Master Table</span>
+              <span className="font-heading text-xl font-bold leading-none tracking-tight text-foreground">
+                Master Table
+              </span>
             )}
           </Link>
 
@@ -142,12 +225,16 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileMenuOpen, setIsMobileMen
           )}
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 space-y-5 overflow-y-auto overflow-x-hidden p-3" aria-label="Dashboard">
+        <nav
+          className="flex-1 space-y-5 overflow-y-auto overflow-x-hidden p-3"
+          aria-label="Dashboard"
+        >
           {groups.map((group) => (
             <div key={group.title}>
               {!isCollapsed ? (
-                <p className="mb-1.5 px-3 text-xs font-medium text-muted-foreground/80">{group.title}</p>
+                <p className="mb-1.5 px-3 text-xs font-medium text-muted-foreground/80">
+                  {group.title}
+                </p>
               ) : (
                 <div className="mx-3 mb-2 h-px bg-border" />
               )}
@@ -155,6 +242,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileMenuOpen, setIsMobileMen
                 {group.items.map((link) => {
                   const Icon = link.icon;
                   const active = isActive(link.href);
+                  const badge = badgeFor(link.href);
                   return (
                     <li key={link.href}>
                       <Link
@@ -171,16 +259,26 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileMenuOpen, setIsMobileMen
                         )}
                       >
                         {active && (
-                          <span aria-hidden className="absolute inset-y-2.5 left-0 w-1 rounded-full bg-primary" />
+                          <span
+                            aria-hidden
+                            className="absolute inset-y-2.5 left-0 w-1 rounded-full bg-primary"
+                          />
                         )}
-                        <Icon className={cn("h-5 w-5 shrink-0", active ? "text-primary" : "text-current")} />
-                        {!isCollapsed && <span className="flex-1 truncate">{link.name}</span>}
-                        {!isCollapsed && link.badge && (
+                        <Icon
+                          className={cn(
+                            "h-5 w-5 shrink-0",
+                            active ? "text-primary" : "text-current",
+                          )}
+                        />
+                        {!isCollapsed && (
+                          <span className="flex-1 truncate">{link.name}</span>
+                        )}
+                        {!isCollapsed && badge && (
                           <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-[#2B1B10]">
-                            {link.badge}
+                            {badge}
                           </span>
                         )}
-                        {isCollapsed && link.badge && (
+                        {isCollapsed && badge && (
                           <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-primary ring-2 ring-sidebar" />
                         )}
                       </Link>
@@ -192,23 +290,32 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileMenuOpen, setIsMobileMen
           ))}
         </nav>
 
-        {/* Kitchen status */}
         {!isCollapsed && isAdmin && (
           <div className="mx-3 mb-3 rounded-2xl border border-primary/25 bg-primary/10 p-4">
             <div className="flex items-center gap-2 text-sm font-medium text-foreground">
               <span className="relative flex h-2.5 w-2.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                {kitchenOpen && (
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />
+                )}
+                <span
+                  className={cn(
+                    "relative inline-flex h-2.5 w-2.5 rounded-full",
+                    kitchenOpen ? "bg-emerald-500" : "bg-red-500",
+                  )}
+                />
               </span>
-              Kitchen is open
+              {kitchenOpen ? "Kitchen is open" : "API unreachable"}
             </div>
             <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-              12 orders in the queue. Average prep time is 14 minutes.
+              {pendingCount === null
+                ? "Loading queue…"
+                : pendingCount === 0
+                  ? "No orders in the queue right now."
+                  : `${pendingCount} order${pendingCount === 1 ? "" : "s"} in the queue.`}
             </p>
           </div>
         )}
 
-        {/* Footer */}
         <div className="shrink-0 space-y-1 border-t border-border p-3">
           <Link
             href="/help"
@@ -236,7 +343,6 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileMenuOpen, setIsMobileMen
           </button>
         </div>
 
-        {/* Expand button when collapsed */}
         {isCollapsed && (
           <button
             type="button"

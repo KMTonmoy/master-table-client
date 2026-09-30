@@ -17,13 +17,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     ...init,
     headers: { "Content-Type": "application/json", ...init?.headers },
+    credentials: "include",
     cache: "no-store",
   });
+
+  const body = await res.json().catch(() => ({}));
+
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `Request failed: ${res.status}`);
+    throw new Error(
+      body?.message || body?.error || `Request failed: ${res.status}`,
+    );
   }
-  return res.json();
+
+  return body as T;
 }
 
 function qs(params: Record<string, string | undefined>) {
@@ -83,12 +89,17 @@ export type Payment = {
 
 export type AppUser = {
   _id?: string;
+  id?: string;
   email: string;
   name?: string;
   displayName?: string;
   role?: string;
+  provider?: string;
+  isVerified?: boolean;
   status?: string;
   timestamp?: number;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type TopDish = {
@@ -107,6 +118,55 @@ export type TrafficSegment = {
 export type FunnelStep = {
   label: string;
   value: number;
+};
+
+// ---------- AUTH TYPES ----------
+
+export type AuthRole = "user" | "admin";
+export type AuthProviderType = "email" | "google" | "facebook";
+
+export type AuthUser = {
+  id: string;
+  name: string;
+  email: string;
+  profileImage?: string;
+  role: AuthRole;
+  provider: AuthProviderType;
+  isVerified?: boolean;
+};
+
+export type AuthResponse = {
+  success: boolean;
+  message?: string;
+  user: AuthUser;
+};
+
+export type MeResponse = {
+  success: boolean;
+  user: AuthUser;
+};
+
+export type MessageResponse = {
+  success: boolean;
+  message: string;
+};
+
+export type RegisterPayload = {
+  name: string;
+  email: string;
+  password: string;
+};
+
+export type LoginPayload = {
+  email: string;
+  password: string;
+};
+
+export type CreateAdminUserPayload = {
+  name?: string;
+  email: string;
+  password?: string;
+  role: AuthRole;
 };
 
 export const api = {
@@ -236,7 +296,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  // ---------- USERS ----------
+  // ---------- USERS (legacy, email-keyed) ----------
   users: () => request<AppUser[]>("/users"),
   user: (email: string) =>
     request<AppUser | null>(`/users/${encodeURIComponent(email)}`),
@@ -286,5 +346,45 @@ export const api = {
     }),
 
   // ---------- AUTH ----------
-  logout: () => request<{ success: boolean }>("/logout"),
+  register: (data: RegisterPayload) =>
+    request<AuthResponse>("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  login: (data: LoginPayload) =>
+    request<AuthResponse>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  me: () => request<MeResponse>("/api/auth/me"),
+  logout: () =>
+    request<MessageResponse>("/api/auth/logout", { method: "POST" }),
+  forgotPassword: (email: string) =>
+    request<MessageResponse>("/api/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+  resetPassword: (token: string, password: string) =>
+    request<MessageResponse>(`/api/auth/reset-password/${token}`, {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    }),
+  googleLoginUrl: () => `${BASE_URL}/api/auth/google`,
+  facebookLoginUrl: () => `${BASE_URL}/api/auth/facebook`,
+
+  // ---------- ADMIN: USER MANAGEMENT ----------
+  adminUsers: () =>
+    request<{ success: boolean; users: AppUser[] }>("/api/admin/users"),
+  createAdminUser: (data: CreateAdminUserPayload) =>
+    request<{ success: boolean; user: AuthUser }>("/api/admin/users", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  setUserRole: (id: string, role: AuthRole) =>
+    request<MessageResponse>(`/api/admin/users/${id}/role`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    }),
+  deleteAdminUser: (id: string) =>
+    request<MessageResponse>(`/api/admin/users/${id}`, { method: "DELETE" }),
 };

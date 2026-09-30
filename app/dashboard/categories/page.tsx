@@ -1,54 +1,125 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
-import { Button, Card, Field, PageHeader, ProgressBar, Toggle, inputClass } from "@/components/dashboard/ui";
-import { money } from "@/lib/dashboard-data";
-import { api } from "@/lib/api";
+import { useCallback, useEffect, useState } from "react";
+import axios from "axios";
+import { ImageIcon, Plus, Trash2 } from "lucide-react";
+import {
+  Button,
+  Card,
+  Field,
+  PageHeader,
+  ProgressBar,
+  Toggle,
+  inputClass,
+} from "@/components/dashboard/ui";
+import { money } from "@/lib/format";
 import type { Category } from "@/types/dashboard.types";
 
-const EMOJI_OPTIONS = ["🍽️", "🔥", "🥗", "🦐", "🫓", "🍮", "🥟", "🍷"];
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+).replace(/\/+$/, "");
+
+type CategoryRow = Category & { image?: string };
+
+const normalizeCategory = (c: any): CategoryRow => ({
+  id: String(c?.id ?? c?._id ?? ""),
+  name: c?.name ?? "Untitled",
+  description: c?.description ?? "",
+  image: c?.image ?? "",
+  emoji: c?.emoji ?? "🍽️",
+  items: Number(c?.items ?? 0),
+  revenue: Number(c?.revenue ?? 0),
+  share: Number(c?.share ?? 0),
+});
+
+const extractError = (err: unknown, fallback: string) => {
+  if (axios.isAxiosError(err)) {
+    return (
+      err.response?.data?.error ||
+      err.response?.data?.message ||
+      err.message ||
+      fallback
+    );
+  }
+  return err instanceof Error ? err.message : fallback;
+};
 
 const Categories = () => {
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [visible, setVisible] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [image, setImage] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const load = () => {
-    setLoading(true);
-    api
-      .categories()
-      .then((list) => {
-        setCategories(list);
-        setVisible((prev) => ({ ...Object.fromEntries(list.map((c) => [c.id, true])), ...prev }));
-      })
-      .finally(() => setLoading(false));
-  };
+  const load = useCallback(async () => {
+    try {
+      const { data } = await axios.get(`${API_URL}/api/categories`, {
+        withCredentials: true,
+      });
+      const list = (Array.isArray(data) ? data : []).map(normalizeCategory);
+      setCategories(list);
+      setVisible((prev) => ({
+        ...Object.fromEntries(list.map((c) => [c.id, true])),
+        ...prev,
+      }));
+      setError(null);
+    } catch (err) {
+      setError(extractError(err, "Failed to load categories"));
+      setCategories([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  useEffect(load, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const totalItems = categories.reduce((a, c) => a + c.items, 0);
   const totalRevenue = categories.reduce((a, c) => a + c.revenue, 0);
   const maxShare = Math.max(...categories.map((c) => c.share), 1);
 
-  const submit = async () => {
-    if (!name.trim()) return;
-    await api.createCategory({ name, description, emoji: EMOJI_OPTIONS[categories.length % EMOJI_OPTIONS.length] });
+  const resetForm = () => {
     setName("");
     setDescription("");
+    setImage("");
     setAdding(false);
-    load();
+  };
+
+  const submit = async () => {
+    if (!name.trim() || saving) return;
+    setSaving(true);
+    try {
+      await axios.post(
+        `${API_URL}/api/categories`,
+        {
+          name: name.trim(),
+          description: description.trim(),
+          image: image.trim(),
+        },
+        { withCredentials: true }
+      );
+      resetForm();
+      await load();
+    } catch (err) {
+      setError(extractError(err, "Failed to create category"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const remove = async (id: string) => {
     setCategories((prev) => prev.filter((c) => c.id !== id));
     try {
-      await api.deleteCategory(id);
+      await axios.delete(`${API_URL}/api/categories/${id}`, {
+        withCredentials: true,
+      });
     } catch {
-      load();
+      await load();
     }
   };
 
@@ -56,81 +127,168 @@ const Categories = () => {
     <>
       <PageHeader
         title="Categories"
-        description={loading ? "Loading categories…" : `${categories.length} categories with ${totalItems} items. ${money(totalRevenue, 0)} in sales this month.`}
+        description={
+          loading
+            ? "Loading categories…"
+            : `${categories.length} categories with ${totalItems} items. ${money(totalRevenue, 0)} in sales this month.`
+        }
         actions={
-          <Button variant="primary" icon={Plus} onClick={() => setAdding((v) => !v)}>
+          <Button
+            variant="primary"
+            icon={Plus}
+            onClick={() => setAdding((v) => !v)}
+          >
             New category
           </Button>
         }
       />
 
+      {error && (
+        <Card className="border-destructive/40 p-5 text-sm text-destructive">
+          Could not reach the API: {error}
+        </Card>
+      )}
+
       {adding && (
         <Card className="p-5 sm:p-6">
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="min-w-[240px] flex-1">
-              <Field label="Category name" hint="Guests see this name on the menu.">
-                <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="For example, Weekend specials" autoFocus />
-              </Field>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field
+              label="Category name"
+              hint="Guests see this name on the menu."
+            >
+              <input
+                className={inputClass}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="For example, Weekend specials"
+                autoFocus
+              />
+            </Field>
+            <Field label="Description">
+              <input
+                className={inputClass}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="A short line about this category"
+              />
+            </Field>
+            <Field
+              label="Image URL"
+              hint="Paste a Cloudinary or direct image URL."
+            >
+              <input
+                className={inputClass}
+                value={image}
+                onChange={(e) => setImage(e.target.value)}
+                placeholder="https://res.cloudinary.com/…/category.jpg"
+              />
+            </Field>
+          </div>
+
+          {image.trim() && (
+            <div className="mt-4 overflow-hidden rounded-2xl border border-border/70">
+              <img
+                src={image.trim()}
+                alt="Preview"
+                className="h-40 w-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                }}
+              />
             </div>
-            <div className="min-w-[240px] flex-1">
-              <Field label="Description">
-                <input className={inputClass} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="A short line about this category" />
-              </Field>
-            </div>
-            <div className="flex gap-2 pb-6">
-              <Button variant="primary" disabled={!name.trim()} onClick={submit}>
-                Save category
-              </Button>
-              <Button variant="ghost" onClick={() => setAdding(false)}>
-                Cancel
-              </Button>
-            </div>
+          )}
+
+          <div className="mt-4 flex gap-2">
+            <Button
+              variant="primary"
+              disabled={!name.trim() || saving}
+              onClick={submit}
+            >
+              {saving ? "Saving…" : "Save category"}
+            </Button>
+            <Button variant="ghost" onClick={resetForm} disabled={saving}>
+              Cancel
+            </Button>
           </div>
         </Card>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {loading
-          ? Array.from({ length: 6 }).map((_, i) => <Card key={i} className="h-72 animate-pulse bg-foreground/5" />)
+          ? Array.from({ length: 6 }).map((_, i) => (
+              <Card key={i} className="h-72 animate-pulse bg-foreground/5">
+                <span className="sr-only">Loading…</span>
+              </Card>
+            ))
           : categories.map((c) => (
-              <Card key={c.id} className="flex flex-col p-5 sm:p-6">
-                <div className="flex items-start justify-between gap-3">
-                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 text-3xl ring-1 ring-inset ring-primary/25">
-                    {c.emoji}
-                  </span>
-                  <Toggle
-                    checked={visible[c.id] ?? true}
-                    onChange={(v) => setVisible((s) => ({ ...s, [c.id]: v }))}
-                    label={`Show ${c.name} on the menu`}
-                  />
-                </div>
-
-                <h3 className="mt-4 font-heading text-xl font-semibold text-foreground">{c.name}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{c.description}</p>
-
-                <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-2xl bg-foreground/5 px-4 py-3">
-                    <p className="text-xs text-muted-foreground">Items</p>
-                    <p className="font-heading text-xl font-bold text-foreground">{c.items}</p>
-                  </div>
-                  <div className="rounded-2xl bg-foreground/5 px-4 py-3">
-                    <p className="text-xs text-muted-foreground">Sales</p>
-                    <p className="font-heading text-xl font-bold text-foreground">{money(c.revenue, 0)}</p>
+              <Card key={c.id} className="flex flex-col overflow-hidden">
+                <div className="relative h-32 w-full overflow-hidden bg-gradient-to-br from-primary/20 via-primary/5 to-transparent">
+                  {c.image ? (
+                    <img
+                      src={c.image}
+                      alt={c.name}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-muted-foreground">
+                      <ImageIcon className="h-8 w-8" />
+                    </div>
+                  )}
+                  <div className="absolute right-3 top-3">
+                    <Toggle
+                      checked={visible[c.id] ?? true}
+                      onChange={(v) =>
+                        setVisible((s) => ({ ...s, [c.id]: v }))
+                      }
+                      label={`Show ${c.name} on the menu`}
+                    />
                   </div>
                 </div>
 
-                <div className="mt-5">
-                  <div className="mb-2 flex justify-between text-xs text-muted-foreground">
-                    <span>Share of revenue</span>
-                    <span className="font-medium text-foreground">{c.share}%</span>
-                  </div>
-                  <ProgressBar value={(c.share / maxShare) * 100} />
-                </div>
+                <div className="flex flex-1 flex-col p-5 sm:p-6">
+                  <h3 className="font-heading text-xl font-semibold text-foreground">
+                    {c.name}
+                  </h3>
+                  <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                    {c.description || "No description yet."}
+                  </p>
 
-                <div className="mt-5 flex gap-2 border-t border-border/60 pt-4">
-                  <Button size="sm" variant="danger" icon={Trash2} className="flex-1" onClick={() => remove(c.id)}>
-                    Delete
-                  </Button>
+                  <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
+                    <div className="rounded-2xl bg-foreground/5 px-4 py-3">
+                      <p className="text-xs text-muted-foreground">Items</p>
+                      <p className="font-heading text-xl font-bold text-foreground">
+                        {c.items}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-foreground/5 px-4 py-3">
+                      <p className="text-xs text-muted-foreground">Sales</p>
+                      <p className="font-heading text-xl font-bold text-foreground">
+                        {money(c.revenue, 0)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5">
+                    <div className="mb-2 flex justify-between text-xs text-muted-foreground">
+                      <span>Share of revenue</span>
+                      <span className="font-medium text-foreground">
+                        {c.share}%
+                      </span>
+                    </div>
+                    <ProgressBar value={(c.share / maxShare) * 100} />
+                  </div>
+
+                  <div className="mt-5 flex gap-2 border-t border-border/60 pt-4">
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      icon={Trash2}
+                      className="flex-1"
+                      onClick={() => remove(c.id)}
+                    >
+                      Delete
+                    </Button>
+                  </div>
                 </div>
               </Card>
             ))}

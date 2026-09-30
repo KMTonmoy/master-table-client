@@ -2,35 +2,94 @@
 
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import { Bell, Check, KeyRound, Monitor, Moon, Palette, Store, Sun } from "lucide-react";
+import axios from "axios";
+import {
+  Bell,
+  Check,
+  KeyRound,
+  Monitor,
+  Moon,
+  Palette,
+  Store,
+  Sun,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { Avatar, Button, Card, CardHeader, Field, PageHeader, Select, Toggle, inputClass } from "@/components/dashboard/ui";
+import {
+  Avatar,
+  Button,
+  Card,
+  CardHeader,
+  Field,
+  PageHeader,
+  Select,
+  Toggle,
+  inputClass,
+} from "@/components/dashboard/ui";
 import { cn } from "@/lib/utils";
-import { api } from "@/lib/api";
 import type { RestaurantSettings } from "@/types/dashboard.types";
+
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+).replace(/\/+$/, "");
 
 type Tab = "restaurant" | "notifications" | "appearance" | "security";
 
 const TABS: { id: Tab; label: string; hint: string; icon: LucideIcon }[] = [
-  { id: "restaurant", label: "Restaurant", hint: "Name, hours and contact", icon: Store },
-  { id: "notifications", label: "Notifications", hint: "Alerts and emails", icon: Bell },
-  { id: "appearance", label: "Appearance", hint: "Theme and display", icon: Palette },
-  { id: "security", label: "Security", hint: "Password and sessions", icon: KeyRound },
+  {
+    id: "restaurant",
+    label: "Restaurant",
+    hint: "Name, hours and contact",
+    icon: Store,
+  },
+  {
+    id: "notifications",
+    label: "Notifications",
+    hint: "Alerts and emails",
+    icon: Bell,
+  },
+  {
+    id: "appearance",
+    label: "Appearance",
+    hint: "Theme and display",
+    icon: Palette,
+  },
+  {
+    id: "security",
+    label: "Security",
+    hint: "Password and sessions",
+    icon: KeyRound,
+  },
 ];
 
 const useSaved = () => {
   const [saved, setSaved] = useState(false);
+
   useEffect(() => {
     if (!saved) return;
     const t = window.setTimeout(() => setSaved(false), 2000);
     return () => window.clearTimeout(t);
   }, [saved]);
+
   return [saved, () => setSaved(true)] as const;
 };
 
-const SaveBar = ({ saved, onSave, saving }: { saved: boolean; onSave: () => void; saving?: boolean }) => (
+const SaveBar = ({
+  saved,
+  onSave,
+  saving,
+}: {
+  saved: boolean;
+  onSave: () => void;
+  saving?: boolean;
+}) => (
   <div className="flex items-center justify-end gap-3 border-t border-border/70 px-5 py-4 sm:px-6">
-    <span aria-live="polite" className={cn("inline-flex items-center gap-1.5 text-sm text-emerald-600 transition-opacity dark:text-emerald-400", saved ? "opacity-100" : "opacity-0")}>
+    <span
+      aria-live="polite"
+      className={cn(
+        "inline-flex items-center gap-1.5 text-sm text-emerald-600 transition-opacity dark:text-emerald-400",
+        saved ? "opacity-100" : "opacity-0",
+      )}
+    >
       <Check className="h-4 w-4" /> Changes saved
     </span>
     <Button variant="primary" onClick={onSave} disabled={saving}>
@@ -51,63 +110,146 @@ const emptySettings: RestaurantSettings = {
   serviceCharge: 5,
 };
 
+const extractError = (err: unknown, fallback: string) => {
+  if (axios.isAxiosError(err)) {
+    return (
+      err.response?.data?.error ||
+      err.response?.data?.message ||
+      err.message ||
+      fallback
+    );
+  }
+  return err instanceof Error ? err.message : fallback;
+};
+
 const Restaurant = () => {
   const [saved, save] = useSaved();
   const [form, setForm] = useState<RestaurantSettings>(emptySettings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api
-      .settings()
-      .then((s) => s && setForm(s))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const { data } = await axios.get(`${API_URL}/api/settings`, {
+          withCredentials: true,
+        });
+        if (cancelled) return;
+        if (data) {
+          setForm({
+            ...emptySettings,
+            ...data,
+            serviceCharge: Number(data.serviceCharge ?? 5),
+          });
+        }
+      } catch (err) {
+        if (cancelled) return;
+        setError(extractError(err, "Failed to load settings"));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const submit = async () => {
     setSaving(true);
+    setError(null);
     try {
-      await api.updateSettings(form);
+      await axios.patch(`${API_URL}/api/settings`, form, {
+        withCredentials: true,
+      });
       save();
+    } catch (err) {
+      setError(extractError(err, "Failed to save settings"));
     } finally {
       setSaving(false);
     }
   };
 
   const field = (key: keyof RestaurantSettings) => ({
-    value: form[key] as string,
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [key]: e.target.value })),
+    value: String(form[key] ?? ""),
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+      setForm((f) => ({ ...f, [key]: e.target.value })),
   });
 
   return (
     <Card>
-      <CardHeader title="Restaurant profile" subtitle="This information appears on your website and receipts." />
+      <CardHeader
+        title="Restaurant profile"
+        subtitle="This information appears on your website and receipts."
+      />
+      {error && (
+        <div className="border-b border-destructive/30 bg-destructive/5 px-5 py-3 text-sm text-destructive sm:px-6">
+          {error}
+        </div>
+      )}
       <div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
         <Field label="Restaurant name">
           <input className={inputClass} disabled={loading} {...field("name")} />
         </Field>
         <Field label="Tagline">
-          <input className={inputClass} disabled={loading} {...field("tagline")} />
+          <input
+            className={inputClass}
+            disabled={loading}
+            {...field("tagline")}
+          />
         </Field>
         <Field label="Contact email">
-          <input type="email" className={inputClass} disabled={loading} {...field("email")} />
+          <input
+            type="email"
+            className={inputClass}
+            disabled={loading}
+            {...field("email")}
+          />
         </Field>
         <Field label="Phone">
-          <input type="tel" className={inputClass} disabled={loading} {...field("phone")} />
+          <input
+            type="tel"
+            className={inputClass}
+            disabled={loading}
+            {...field("phone")}
+          />
         </Field>
         <div className="sm:col-span-2">
           <Field label="Address">
-            <input className={inputClass} disabled={loading} {...field("address")} />
+            <input
+              className={inputClass}
+              disabled={loading}
+              {...field("address")}
+            />
           </Field>
         </div>
         <Field label="Opens at">
-          <input type="time" className={inputClass} disabled={loading} {...field("opensAt")} />
+          <input
+            type="time"
+            className={inputClass}
+            disabled={loading}
+            {...field("opensAt")}
+          />
         </Field>
         <Field label="Closes at">
-          <input type="time" className={inputClass} disabled={loading} {...field("closesAt")} />
+          <input
+            type="time"
+            className={inputClass}
+            disabled={loading}
+            {...field("closesAt")}
+          />
         </Field>
         <Field label="Currency">
-          <Select value={form.currency} disabled={loading} onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}>
+          <Select
+            value={form.currency}
+            disabled={loading}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, currency: e.target.value }))
+            }
+          >
             <option value="USD">US dollar ($)</option>
             <option value="BDT">Bangladeshi taka (৳)</option>
             <option value="EUR">Euro (€)</option>
@@ -121,7 +263,12 @@ const Restaurant = () => {
             className={inputClass}
             disabled={loading}
             value={form.serviceCharge}
-            onChange={(e) => setForm((f) => ({ ...f, serviceCharge: Number(e.target.value) }))}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                serviceCharge: Number(e.target.value),
+              }))
+            }
           />
         </Field>
       </div>
@@ -140,25 +287,61 @@ const Notifications = () => {
     weekly: true,
     marketing: false,
   });
+
   const rows: { key: keyof typeof prefs; title: string; desc: string }[] = [
-    { key: "newOrder", title: "New orders", desc: "Play a sound and show an alert when an order comes in." },
-    { key: "lowStock", title: "Low stock", desc: "Tell me when a dish drops below 10 portions." },
-    { key: "reservations", title: "Reservations", desc: "Remind me 30 minutes before a booking." },
-    { key: "reviews", title: "New reviews", desc: "Let me know when a guest leaves a rating." },
-    { key: "weekly", title: "Weekly summary email", desc: "Sales and top dishes every Monday morning." },
-    { key: "marketing", title: "Product updates", desc: "News about new Master Table dashboard features." },
+    {
+      key: "newOrder",
+      title: "New orders",
+      desc: "Play a sound and show an alert when an order comes in.",
+    },
+    {
+      key: "lowStock",
+      title: "Low stock",
+      desc: "Tell me when a dish drops below 10 portions.",
+    },
+    {
+      key: "reservations",
+      title: "Reservations",
+      desc: "Remind me 30 minutes before a booking.",
+    },
+    {
+      key: "reviews",
+      title: "New reviews",
+      desc: "Let me know when a guest leaves a rating.",
+    },
+    {
+      key: "weekly",
+      title: "Weekly summary email",
+      desc: "Sales and top dishes every Monday morning.",
+    },
+    {
+      key: "marketing",
+      title: "Product updates",
+      desc: "News about new Master Table dashboard features.",
+    },
   ];
+
   return (
     <Card>
-      <CardHeader title="Notifications" subtitle="Choose what you want to hear about." />
+      <CardHeader
+        title="Notifications"
+        subtitle="Choose what you want to hear about."
+      />
       <ul className="divide-y divide-border/60 px-5 sm:px-6">
         {rows.map((r) => (
-          <li key={r.key} className="flex items-center justify-between gap-6 py-4">
+          <li
+            key={r.key}
+            className="flex items-center justify-between gap-6 py-4"
+          >
             <div>
               <p className="text-sm font-medium text-foreground">{r.title}</p>
               <p className="text-sm text-muted-foreground">{r.desc}</p>
             </div>
-            <Toggle checked={prefs[r.key]} onChange={(v) => setPrefs((p) => ({ ...p, [r.key]: v }))} label={r.title} />
+            <Toggle
+              checked={prefs[r.key]}
+              onChange={(v) => setPrefs((p) => ({ ...p, [r.key]: v }))}
+              label={r.title}
+            />
           </li>
         ))}
       </ul>
@@ -170,15 +353,24 @@ const Notifications = () => {
 const Appearance = () => {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
   const options = [
     { id: "light", label: "Light", icon: Sun },
     { id: "dark", label: "Dark", icon: Moon },
     { id: "system", label: "System", icon: Monitor },
   ] as const;
+
   return (
     <Card>
-      <CardHeader title="Appearance" subtitle="Pick how the dashboard looks on this device." />
+      <CardHeader
+        title="Appearance"
+        subtitle="Pick how the dashboard looks on this device."
+      />
       <div className="grid gap-4 p-5 sm:grid-cols-3 sm:p-6">
         {options.map((o) => {
           const Icon = o.icon;
@@ -191,13 +383,24 @@ const Appearance = () => {
               onClick={() => setTheme(o.id)}
               className={cn(
                 "flex flex-col items-start gap-6 rounded-2xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
-                active ? "border-primary bg-primary/10" : "border-border hover:border-primary/40",
+                active
+                  ? "border-primary bg-primary/10"
+                  : "border-border hover:border-primary/40",
               )}
             >
-              <span className={cn("flex h-10 w-10 items-center justify-center rounded-xl", active ? "bg-primary text-[#2B1B10]" : "bg-foreground/5 text-muted-foreground")}>
+              <span
+                className={cn(
+                  "flex h-10 w-10 items-center justify-center rounded-xl",
+                  active
+                    ? "bg-primary text-[#2B1B10]"
+                    : "bg-foreground/5 text-muted-foreground",
+                )}
+              >
                 <Icon className="h-5 w-5" />
               </span>
-              <span className="text-sm font-medium text-foreground">{o.label}</span>
+              <span className="text-sm font-medium text-foreground">
+                {o.label}
+              </span>
             </button>
           );
         })}
@@ -208,38 +411,70 @@ const Appearance = () => {
 
 const Security = () => {
   const [saved, save] = useSaved();
+
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader title="Change password" subtitle="Use at least 12 characters." />
+        <CardHeader
+          title="Change password"
+          subtitle="Use at least 12 characters."
+        />
         <div className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
           <div className="sm:col-span-2">
             <Field label="Current password">
-              <input type="password" className={inputClass} autoComplete="current-password" />
+              <input
+                type="password"
+                className={inputClass}
+                autoComplete="current-password"
+              />
             </Field>
           </div>
           <Field label="New password">
-            <input type="password" className={inputClass} autoComplete="new-password" />
+            <input
+              type="password"
+              className={inputClass}
+              autoComplete="new-password"
+            />
           </Field>
           <Field label="Confirm new password">
-            <input type="password" className={inputClass} autoComplete="new-password" />
+            <input
+              type="password"
+              className={inputClass}
+              autoComplete="new-password"
+            />
           </Field>
         </div>
         <SaveBar saved={saved} onSave={save} />
       </Card>
 
       <Card>
-        <CardHeader title="Signed-in devices" subtitle="Sign out anywhere you do not recognise." />
+        <CardHeader
+          title="Signed-in devices"
+          subtitle="Sign out anywhere you do not recognise."
+        />
         <ul className="divide-y divide-border/60 px-5 pb-2 pt-3 sm:px-6">
           {[
-            { name: "Chrome on Windows", meta: "Pabna, Bangladesh · This device", current: true },
-            { name: "Safari on iPhone", meta: "Dhaka, Bangladesh · 2 days ago", current: false },
+            {
+              name: "Chrome on Windows",
+              meta: "Pabna, Bangladesh · This device",
+              current: true,
+            },
+            {
+              name: "Safari on iPhone",
+              meta: "Dhaka, Bangladesh · 2 days ago",
+              current: false,
+            },
           ].map((d) => (
-            <li key={d.name} className="flex items-center justify-between gap-4 py-3.5">
+            <li
+              key={d.name}
+              className="flex items-center justify-between gap-4 py-3.5"
+            >
               <div className="flex items-center gap-3">
                 <Avatar name={d.name} size="sm" />
                 <div>
-                  <p className="text-sm font-medium text-foreground">{d.name}</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {d.name}
+                  </p>
                   <p className="text-xs text-muted-foreground">{d.meta}</p>
                 </div>
               </div>
@@ -261,11 +496,18 @@ const Settings = () => {
 
   return (
     <>
-      <PageHeader title="Settings" description="Manage your restaurant, alerts and account." />
+      <PageHeader
+        title="Settings"
+        description="Manage your restaurant, alerts and account."
+      />
 
       <div className="grid items-start gap-6 lg:grid-cols-[260px_minmax(0,1fr)] 2xl:grid-cols-[300px_minmax(0,1fr)]">
         <Card className="p-2 lg:sticky lg:top-24">
-          <ul className="flex gap-1 overflow-x-auto lg:flex-col" role="tablist" aria-label="Settings sections">
+          <ul
+            className="flex gap-1 overflow-x-auto lg:flex-col"
+            role="tablist"
+            aria-label="Settings sections"
+          >
             {TABS.map((t) => {
               const Icon = t.icon;
               const active = tab === t.id;
@@ -278,13 +520,24 @@ const Settings = () => {
                     onClick={() => setTab(t.id)}
                     className={cn(
                       "flex w-full items-center gap-3 rounded-2xl px-3.5 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
-                      active ? "bg-primary/15 ring-1 ring-inset ring-primary/30" : "hover:bg-foreground/5",
+                      active
+                        ? "bg-primary/15 ring-1 ring-inset ring-primary/30"
+                        : "hover:bg-foreground/5",
                     )}
                   >
-                    <Icon className={cn("h-5 w-5 shrink-0", active ? "text-primary" : "text-muted-foreground")} />
+                    <Icon
+                      className={cn(
+                        "h-5 w-5 shrink-0",
+                        active ? "text-primary" : "text-muted-foreground",
+                      )}
+                    />
                     <span className="min-w-0">
-                      <span className="block text-sm font-medium text-foreground">{t.label}</span>
-                      <span className="hidden text-xs text-muted-foreground lg:block">{t.hint}</span>
+                      <span className="block text-sm font-medium text-foreground">
+                        {t.label}
+                      </span>
+                      <span className="hidden text-xs text-muted-foreground lg:block">
+                        {t.hint}
+                      </span>
                     </span>
                   </button>
                 </li>

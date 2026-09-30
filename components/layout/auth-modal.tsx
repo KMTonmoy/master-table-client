@@ -4,12 +4,15 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeOff, Lock, Mail, User, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
 import {
+  INITIAL_FORGOT_PASSWORD,
   INITIAL_LOGIN,
   INITIAL_REGISTER,
   type AuthMode,
   type LoginForm,
   type RegisterForm,
+  type ForgotPasswordForm,
 } from "@/types/auth.types";
 
 type Props = {
@@ -146,9 +149,36 @@ const SocialButton = ({
 };
 
 const AuthModal = ({ open, mode, onClose, onModeChange }: Props) => {
-  const [login, setLogin] = useState<LoginForm>(INITIAL_LOGIN);
-  const [register, setRegister] = useState<RegisterForm>(INITIAL_REGISTER);
+  const {
+    login,
+    register,
+    forgotPassword,
+    loginWithGoogle,
+    loginWithFacebook,
+  } = useAuth();
+
+  const [loginForm, setLoginForm] = useState<LoginForm>(INITIAL_LOGIN);
+  const [registerForm, setRegisterForm] =
+    useState<RegisterForm>(INITIAL_REGISTER);
+  const [forgotForm, setForgotForm] = useState<ForgotPasswordForm>(
+    INITIAL_FORGOT_PASSWORD,
+  );
   const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [trackedOpen, setTrackedOpen] = useState(open);
+  const [trackedMode, setTrackedMode] = useState(mode);
+
+  if (open !== trackedOpen || mode !== trackedMode) {
+    setTrackedOpen(open);
+    setTrackedMode(mode);
+    if (open) {
+      setError(null);
+      setNotice(null);
+      setSubmitting(false);
+    }
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -158,25 +188,71 @@ const AuthModal = ({ open, mode, onClose, onModeChange }: Props) => {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("[Auth] Login:", login);
+    setError(null);
+    setSubmitting(true);
+    try {
+      await login(loginForm.email, loginForm.password);
+      setLoginForm(INITIAL_LOGIN);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("[Auth] Register:", register);
+    setError(null);
+
+    if (registerForm.password !== registerForm.confirm) {
+      setError("Passwords do not match");
+      return;
+    }
+    if (registerForm.password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await register(
+        registerForm.name,
+        registerForm.email,
+        registerForm.password,
+      );
+      setRegisterForm(INITIAL_REGISTER);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Registration failed");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleGoogle = () => {
-    console.log("[Auth] Google OAuth");
-  };
-
-  const handleFacebook = () => {
-    console.log("[Auth] Facebook OAuth");
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setNotice(null);
+    setSubmitting(true);
+    try {
+      const message = await forgotPassword(forgotForm.email);
+      setNotice(message);
+      setForgotForm(INITIAL_FORGOT_PASSWORD);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Could not send reset link",
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const isLogin = mode === "login";
+  const isRegister = mode === "register";
+  const isForgot = mode === "forgot-password";
 
   return (
     <AnimatePresence>
@@ -198,7 +274,13 @@ const AuthModal = ({ open, mode, onClose, onModeChange }: Props) => {
           <motion.div
             role="dialog"
             aria-modal="true"
-            aria-label={isLogin ? "Login" : "Create account"}
+            aria-label={
+              isLogin
+                ? "Login"
+                : isRegister
+                  ? "Create account"
+                  : "Reset password"
+            }
             initial={{ opacity: 0, y: 24, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -12, scale: 0.97 }}
@@ -236,52 +318,71 @@ const AuthModal = ({ open, mode, onClose, onModeChange }: Props) => {
 
               <div className="relative p-6 sm:p-8">
                 <h2 className="font-heading text-2xl font-bold text-foreground">
-                  {isLogin ? "Welcome back" : "Create your account"}
+                  {isLogin
+                    ? "Welcome back"
+                    : isRegister
+                      ? "Create your account"
+                      : "Reset your password"}
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {isLogin
                     ? "Sign in to manage reservations and orders."
-                    : "Join Master Table in a few seconds."}
+                    : isRegister
+                      ? "Join Master Table in a few seconds."
+                      : "We'll email you a link to set a new password."}
                 </p>
 
-                <div className="mt-5 inline-flex w-full rounded-full border border-white/60 bg-white/15 p-1 backdrop-blur-md dark:border-white/10 dark:bg-white/5">
-                  <button
-                    type="button"
-                    onClick={() => onModeChange("login")}
-                    className={cn(
-                      "flex-1 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-300",
-                      isLogin
-                        ? "bg-primary text-primary-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Login
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onModeChange("register")}
-                    className={cn(
-                      "flex-1 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-300",
-                      !isLogin
-                        ? "bg-primary text-primary-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Register
-                  </button>
-                </div>
+                {!isForgot && (
+                  <div className="mt-5 inline-flex w-full rounded-full border border-white/60 bg-white/15 p-1 backdrop-blur-md dark:border-white/10 dark:bg-white/5">
+                    <button
+                      type="button"
+                      onClick={() => onModeChange("login")}
+                      className={cn(
+                        "flex-1 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-300",
+                        isLogin
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      Login
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onModeChange("register")}
+                      className={cn(
+                        "flex-1 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-300",
+                        isRegister
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      Register
+                    </button>
+                  </div>
+                )}
+
+                {error && (
+                  <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+                    {error}
+                  </div>
+                )}
+                {notice && (
+                  <div className="mt-4 rounded-xl border border-primary/30 bg-primary/10 px-4 py-2.5 text-sm text-foreground">
+                    {notice}
+                  </div>
+                )}
 
                 <div className="mt-6">
-                  {isLogin ? (
+                  {isLogin && (
                     <form onSubmit={handleLogin} className="space-y-4">
                       <AuthField
                         id="login-email"
                         label="Email"
                         icon={<Mail className="h-4 w-4" />}
                         type="email"
-                        value={login.email}
+                        value={loginForm.email}
                         onChange={(v) =>
-                          setLogin((f) => ({ ...f, email: v }))
+                          setLoginForm((f) => ({ ...f, email: v }))
                         }
                         placeholder="jane@example.com"
                       />
@@ -290,9 +391,9 @@ const AuthModal = ({ open, mode, onClose, onModeChange }: Props) => {
                         label="Password"
                         icon={<Lock className="h-4 w-4" />}
                         type={showPassword ? "text" : "password"}
-                        value={login.password}
+                        value={loginForm.password}
                         onChange={(v) =>
-                          setLogin((f) => ({ ...f, password: v }))
+                          setLoginForm((f) => ({ ...f, password: v }))
                         }
                         placeholder="••••••••"
                         trailing={
@@ -300,9 +401,7 @@ const AuthModal = ({ open, mode, onClose, onModeChange }: Props) => {
                             type="button"
                             onClick={() => setShowPassword((v) => !v)}
                             aria-label={
-                              showPassword
-                                ? "Hide password"
-                                : "Show password"
+                              showPassword ? "Hide password" : "Show password"
                             }
                             className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/40 hover:text-foreground dark:hover:bg-white/10"
                           >
@@ -325,6 +424,7 @@ const AuthModal = ({ open, mode, onClose, onModeChange }: Props) => {
                         </label>
                         <button
                           type="button"
+                          onClick={() => onModeChange("forgot-password")}
                           className="font-semibold text-primary hover:underline"
                         >
                           Forgot password?
@@ -333,25 +433,29 @@ const AuthModal = ({ open, mode, onClose, onModeChange }: Props) => {
 
                       <button
                         type="submit"
+                        disabled={submitting}
                         className="
                           inline-flex h-12 w-full items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground
                           shadow-[0_12px_32px_-12px_rgba(224,165,38,0.6)]
                           transition-all duration-300
                           hover:scale-[1.01] hover:bg-primary/90 active:scale-[0.99]
+                          disabled:cursor-not-allowed disabled:opacity-70
                         "
                       >
-                        Sign in
+                        {submitting ? "Signing in..." : "Sign in"}
                       </button>
                     </form>
-                  ) : (
+                  )}
+
+                  {isRegister && (
                     <form onSubmit={handleRegister} className="space-y-4">
                       <AuthField
                         id="register-name"
                         label="Full name"
                         icon={<User className="h-4 w-4" />}
-                        value={register.name}
+                        value={registerForm.name}
                         onChange={(v) =>
-                          setRegister((f) => ({ ...f, name: v }))
+                          setRegisterForm((f) => ({ ...f, name: v }))
                         }
                         placeholder="Jane Doe"
                       />
@@ -360,9 +464,9 @@ const AuthModal = ({ open, mode, onClose, onModeChange }: Props) => {
                         label="Email"
                         icon={<Mail className="h-4 w-4" />}
                         type="email"
-                        value={register.email}
+                        value={registerForm.email}
                         onChange={(v) =>
-                          setRegister((f) => ({ ...f, email: v }))
+                          setRegisterForm((f) => ({ ...f, email: v }))
                         }
                         placeholder="jane@example.com"
                       />
@@ -371,9 +475,9 @@ const AuthModal = ({ open, mode, onClose, onModeChange }: Props) => {
                         label="Password"
                         icon={<Lock className="h-4 w-4" />}
                         type={showPassword ? "text" : "password"}
-                        value={register.password}
+                        value={registerForm.password}
                         onChange={(v) =>
-                          setRegister((f) => ({ ...f, password: v }))
+                          setRegisterForm((f) => ({ ...f, password: v }))
                         }
                         placeholder="••••••••"
                         trailing={
@@ -381,9 +485,7 @@ const AuthModal = ({ open, mode, onClose, onModeChange }: Props) => {
                             type="button"
                             onClick={() => setShowPassword((v) => !v)}
                             aria-label={
-                              showPassword
-                                ? "Hide password"
-                                : "Show password"
+                              showPassword ? "Hide password" : "Show password"
                             }
                             className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/40 hover:text-foreground dark:hover:bg-white/10"
                           >
@@ -400,48 +502,98 @@ const AuthModal = ({ open, mode, onClose, onModeChange }: Props) => {
                         label="Confirm password"
                         icon={<Lock className="h-4 w-4" />}
                         type={showPassword ? "text" : "password"}
-                        value={register.confirm}
+                        value={registerForm.confirm}
                         onChange={(v) =>
-                          setRegister((f) => ({ ...f, confirm: v }))
+                          setRegisterForm((f) => ({ ...f, confirm: v }))
                         }
                         placeholder="••••••••"
                       />
 
                       <button
                         type="submit"
+                        disabled={submitting}
                         className="
                           inline-flex h-12 w-full items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground
                           shadow-[0_12px_32px_-12px_rgba(224,165,38,0.6)]
                           transition-all duration-300
                           hover:scale-[1.01] hover:bg-primary/90 active:scale-[0.99]
+                          disabled:cursor-not-allowed disabled:opacity-70
                         "
                       >
-                        Create account
+                        {submitting ? "Creating account..." : "Create account"}
+                      </button>
+                    </form>
+                  )}
+
+                  {isForgot && (
+                    <form onSubmit={handleForgotPassword} className="space-y-4">
+                      <AuthField
+                        id="forgot-email"
+                        label="Email"
+                        icon={<Mail className="h-4 w-4" />}
+                        type="email"
+                        value={forgotForm.email}
+                        onChange={(v) =>
+                          setForgotForm((f) => ({ ...f, email: v }))
+                        }
+                        placeholder="jane@example.com"
+                      />
+
+                      <button
+                        type="submit"
+                        disabled={submitting}
+                        className="
+                          inline-flex h-12 w-full items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground
+                          shadow-[0_12px_32px_-12px_rgba(224,165,38,0.6)]
+                          transition-all duration-300
+                          hover:scale-[1.01] hover:bg-primary/90 active:scale-[0.99]
+                          disabled:cursor-not-allowed disabled:opacity-70
+                        "
+                      >
+                        {submitting ? "Sending link..." : "Send reset link"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => onModeChange("login")}
+                        className="w-full text-center text-sm font-semibold text-primary hover:underline"
+                      >
+                        Back to login
                       </button>
                     </form>
                   )}
                 </div>
 
-                <div className="relative my-6 flex items-center">
-                  <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent" />
-                  <span className="mx-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    or continue with
-                  </span>
-                  <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent" />
-                </div>
+                {!isForgot && (
+                  <>
+                    <div className="relative my-6 flex items-center">
+                      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent" />
+                      <span className="mx-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        or continue with
+                      </span>
+                      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent" />
+                    </div>
 
-                <div className="flex flex-row gap-3">
-                  <SocialButton provider="google" onClick={handleGoogle} />
-                  <SocialButton provider="facebook" onClick={handleFacebook} />
-                </div>
+                    <div className="flex flex-row gap-3">
+                      <SocialButton
+                        provider="google"
+                        onClick={loginWithGoogle}
+                      />
+                      <SocialButton
+                        provider="facebook"
+                        onClick={loginWithFacebook}
+                      />
+                    </div>
 
-                <p className="mt-6 text-center text-xs text-muted-foreground">
-                  By continuing you agree to our{" "}
-                  <span className="font-semibold text-foreground">
-                    Terms & Privacy Policy
-                  </span>
-                  .
-                </p>
+                    <p className="mt-6 text-center text-xs text-muted-foreground">
+                      By continuing you agree to our{" "}
+                      <span className="font-semibold text-foreground">
+                        Terms & Privacy Policy
+                      </span>
+                      .
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           </motion.div>
