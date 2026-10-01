@@ -10,21 +10,32 @@ import {
 } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import axios from "axios";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
+  ChevronDown,
   CornerDownLeft,
   History,
+  LayoutDashboard,
   Loader2,
+  LogOut,
   Menu,
   Moon,
+  Package,
   Search,
   Sun,
   Trash2,
+  UserCog,
   X,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import AuthModal from "./auth-modal";
-import type { AuthMode } from "@/types/auth.types";
+import type { AuthMode, AuthUser } from "@/types/auth.types";
+
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+).replace(/\/+$/, "");
 
 const NAV_ITEMS = [
   { label: "Home", href: "/" },
@@ -38,6 +49,15 @@ const HISTORY_KEY = "mastertable:search-history";
 const HISTORY_EVENT = "mastertable:search-history-change";
 const HISTORY_LIMIT = 10;
 const EMPTY_HISTORY: string[] = [];
+
+const Z = {
+  drawerBackdrop: "z-[9998]",
+  drawer: "z-[9999]",
+  header: "z-[10000]",
+  searchDropdown: "z-[10050]",
+  userDropdown: "z-[10050]",
+  authModal: "z-[10100]",
+} as const;
 
 function subscribeToHistory(callback: () => void) {
   window.addEventListener("storage", callback);
@@ -84,9 +104,23 @@ function writeHistory(list: string[]) {
   } catch {}
 }
 
+const initialsOf = (name: string) => {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+const USER_MENU_ITEMS = [
+  { label: "My profile", href: "/account/profile", icon: UserCog },
+  { label: "My orders", href: "/account/orders", icon: Package },
+  { label: "Order history", href: "/account/history", icon: History },
+];
+
 const Navbar = () => {
   const pathname = usePathname();
   const router = useRouter();
+  const reduce = useReducedMotion();
   const { setTheme, resolvedTheme } = useTheme();
 
   const [open, setOpen] = useState(false);
@@ -98,23 +132,51 @@ const Navbar = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [headerHeight, setHeaderHeight] = useState(0);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const headerRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   const rawHistory = useSyncExternalStore(
     subscribeToHistory,
     getHistorySnapshot,
-    getServerHistorySnapshot
+    getServerHistorySnapshot,
   );
   const history = useMemo(() => parseHistory(rawHistory), [rawHistory]);
 
   if (pathname !== drawerPathname) {
     setDrawerPathname(pathname);
     setOpen(false);
+    setUserMenuOpen(false);
   }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const { data } = await axios.get<{ success: boolean; user: AuthUser }>(
+          `${API_URL}/api/auth/me`,
+          { withCredentials: true },
+        );
+        if (cancelled) return;
+        setUser(data?.user ?? null);
+      } catch {
+        if (!cancelled) setUser(null);
+      } finally {
+        if (!cancelled) setAuthChecked(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -175,6 +237,27 @@ const Navbar = () => {
   }, [dropdownOpen]);
 
   useEffect(() => {
+    if (!userMenuOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(e.target as Node)
+      ) {
+        setUserMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setUserMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [userMenuOpen]);
+
+  useEffect(() => {
     if (activeIndex < 0) return;
     formRef.current
       ?.querySelector(`[data-history-index="${activeIndex}"]`)
@@ -186,6 +269,7 @@ const Navbar = () => {
 
   const isDark = resolvedTheme === "dark";
   const hasQuery = query.trim().length > 0;
+  const isAdmin = user?.role === "admin";
 
   const visibleHistory = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -293,13 +377,34 @@ const Navbar = () => {
     inputRef.current?.focus();
   };
 
+  const handleLogout = async () => {
+    try {
+      await axios.post(
+        `${API_URL}/api/auth/logout`,
+        {},
+        { withCredentials: true },
+      );
+    } catch {}
+    setUser(null);
+    setUserMenuOpen(false);
+    setOpen(false);
+    router.replace("/");
+    router.refresh();
+  };
+
+  const goToDashboard = () => {
+    setUserMenuOpen(false);
+    router.push(isAdmin ? "/dashboard" : "/account/orders");
+  };
+
   return (
     <>
       <header
         ref={headerRef}
         className={cn(
-          "sticky top-0 z-50 w-full border-b border-border/70 bg-background/80 backdrop-blur-md transition-shadow",
-          scrolled && "shadow-[0_8px_24px_-12px_rgba(74,46,32,0.15)]"
+          "sticky top-0 w-full border-b border-border/70 bg-background/80 backdrop-blur-md transition-shadow",
+          Z.header,
+          scrolled && "shadow-[0_8px_24px_-12px_rgba(74,46,32,0.15)]",
         )}
       >
         <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between gap-4 px-4 sm:h-[72px] sm:gap-6 sm:px-5">
@@ -332,7 +437,7 @@ const Navbar = () => {
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                         active && "text-foreground",
                         active &&
-                          "after:absolute after:inset-x-3.5 after:-bottom-px after:h-0.5 after:rounded-full after:bg-primary"
+                          "after:absolute after:inset-x-3.5 after:-bottom-px after:h-0.5 after:rounded-full after:bg-primary",
                       )}
                     >
                       {item.label}
@@ -357,32 +462,196 @@ const Navbar = () => {
               )}
             </button>
 
-            <button
-              type="button"
-              onClick={() => openAuth("login")}
-              className="
-                hidden h-9 items-center justify-center rounded-full px-4 text-sm font-semibold text-foreground
-                transition-all duration-300 hover:bg-secondary
-                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
-                lg:inline-flex
-              "
-            >
-              Login
-            </button>
+            {!authChecked ? (
+              <div className="hidden h-9 w-24 animate-pulse rounded-full bg-secondary lg:block" />
+            ) : user ? (
+              <div ref={userMenuRef} className="relative hidden lg:block">
+                <button
+                  type="button"
+                  onClick={() => setUserMenuOpen((v) => !v)}
+                  aria-haspopup="menu"
+                  aria-expanded={userMenuOpen}
+                  className={cn(
+                    "group flex h-9 items-center gap-2 rounded-full border border-border bg-background/60 pl-1 pr-3 transition-all duration-300",
+                    "hover:border-primary/40 hover:bg-secondary",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    userMenuOpen && "border-primary/60 bg-secondary",
+                  )}
+                >
+                  <span className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-primary to-amber-400 text-[11px] font-bold text-[#2B1B10]">
+                    {user.profileImage ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={user.profileImage}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      initialsOf(user.name)
+                    )}
+                    {isAdmin && (
+                      <span
+                        aria-hidden
+                        className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background"
+                      />
+                    )}
+                  </span>
+                  <span className="max-w-[110px] truncate text-sm font-medium text-foreground">
+                    {user.name.split(" ")[0]}
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300",
+                      userMenuOpen && "rotate-180",
+                    )}
+                  />
+                </button>
 
-            <button
-              type="button"
-              onClick={() => openAuth("register")}
-              className="
-                hidden h-9 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground
-                shadow-sm transition-all duration-300
-                hover:scale-[1.03] hover:bg-primary/90 hover:shadow-md
-                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background
-                lg:inline-flex
-              "
-            >
-              Register
-            </button>
+                <AnimatePresence>
+                  {userMenuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                      transition={{ duration: 0.15, ease: "easeOut" }}
+                      role="menu"
+                      className={cn(
+                        "absolute right-0 top-[calc(100%+10px)] w-72 origin-top-right overflow-hidden rounded-2xl border border-border bg-background shadow-[0_18px_40px_-16px_rgba(74,46,32,0.35)]",
+                        Z.userDropdown,
+                      )}
+                    >
+                      <div className="relative overflow-hidden border-b border-border/60 bg-gradient-to-br from-primary/15 via-primary/5 to-transparent px-4 py-4">
+                        <div
+                          aria-hidden
+                          className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-primary/20 blur-2xl"
+                        />
+                        <div className="relative flex items-center gap-3">
+                          <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-primary to-amber-400 text-sm font-bold text-[#2B1B10] shadow-md">
+                            {user.profileImage ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={user.profileImage}
+                                alt=""
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              initialsOf(user.name)
+                            )}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-foreground">
+                              {user.name}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {user.email}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="relative mt-3 flex flex-wrap gap-1.5">
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                              isAdmin
+                                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                                : "bg-primary/15 text-primary",
+                            )}
+                          >
+                            {isAdmin ? "Admin" : "Customer"}
+                          </span>
+                          {user.isVerified && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
+                              Verified
+                            </span>
+                          )}
+                          <span className="inline-flex items-center gap-1 rounded-full bg-foreground/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            {user.provider}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="p-1.5">
+                        <button
+                          type="button"
+                          onClick={goToDashboard}
+                          role="menuitem"
+                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-foreground transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:bg-secondary"
+                        >
+                          <LayoutDashboard className="h-4 w-4 shrink-0 text-primary" />
+                          {isAdmin ? "Go to dashboard" : "Go to my portal"}
+                        </button>
+                      </div>
+
+                      <div className="border-t border-border/60 p-1.5">
+                        {USER_MENU_ITEMS.map((item) => {
+                          const Icon = item.icon;
+                          const active = isActive(item.href);
+                          return (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              role="menuitem"
+                              onClick={() => setUserMenuOpen(false)}
+                              aria-current={active ? "page" : undefined}
+                              className={cn(
+                                "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                                "hover:bg-secondary focus-visible:outline-none focus-visible:bg-secondary",
+                                active
+                                  ? "bg-secondary text-foreground"
+                                  : "text-muted-foreground",
+                              )}
+                            >
+                              <Icon className="h-4 w-4 shrink-0" />
+                              {item.label}
+                            </Link>
+                          );
+                        })}
+                      </div>
+
+                      <div className="border-t border-border/60 p-1.5">
+                        <button
+                          type="button"
+                          onClick={handleLogout}
+                          role="menuitem"
+                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:bg-destructive/10"
+                        >
+                          <LogOut className="h-4 w-4 shrink-0" />
+                          Sign out
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => openAuth("login")}
+                  className="
+                    hidden h-9 items-center justify-center rounded-full px-4 text-sm font-semibold text-foreground
+                    transition-all duration-300 hover:bg-secondary
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+                    lg:inline-flex
+                  "
+                >
+                  Login
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => openAuth("register")}
+                  className="
+                    hidden h-9 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground
+                    shadow-sm transition-all duration-300
+                    hover:scale-[1.03] hover:bg-primary/90 hover:shadow-md
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background
+                    lg:inline-flex
+                  "
+                >
+                  Register
+                </button>
+              </>
+            )}
 
             <button
               type="button"
@@ -415,7 +684,7 @@ const Navbar = () => {
                   "relative flex h-11 items-center gap-2.5 rounded-full border border-border bg-background/70 pl-4 pr-1.5 sm:h-12 sm:gap-3 sm:pl-5 sm:pr-2",
                   "transition-all duration-300 motion-reduce:transition-none",
                   "hover:border-primary/40",
-                  "group-focus-within:border-primary/70 group-focus-within:bg-background group-focus-within:shadow-[0_8px_24px_-8px] group-focus-within:shadow-primary/40"
+                  "group-focus-within:border-primary/70 group-focus-within:bg-background group-focus-within:shadow-[0_8px_24px_-8px] group-focus-within:shadow-primary/40",
                 )}
               >
                 <Search
@@ -490,12 +759,13 @@ const Navbar = () => {
                 aria-hidden={!showDropdown}
                 onMouseDown={(e) => e.preventDefault()}
                 className={cn(
-                  "absolute inset-x-0 top-[calc(100%+10px)] z-50 flex max-h-[min(60vh,26rem)] flex-col overflow-hidden rounded-2xl border border-border bg-background sm:rounded-3xl",
+                  "absolute inset-x-0 top-[calc(100%+10px)] flex max-h-[min(60vh,26rem)] flex-col overflow-hidden rounded-2xl border border-border bg-background sm:rounded-3xl",
                   "shadow-[0_18px_40px_-16px_rgba(74,46,32,0.35)]",
                   "transition-all duration-200 motion-reduce:transition-none",
+                  Z.searchDropdown,
                   showDropdown
                     ? "visible translate-y-0 opacity-100"
-                    : "pointer-events-none invisible -translate-y-1 opacity-0"
+                    : "pointer-events-none invisible -translate-y-1 opacity-0",
                 )}
               >
                 {showEmptyHint ? (
@@ -526,7 +796,7 @@ const Navbar = () => {
                           className={cn(
                             "group/row flex items-center rounded-xl transition-colors sm:rounded-2xl",
                             "hover:bg-secondary focus-within:bg-secondary",
-                            index === activeIndex && "bg-secondary"
+                            index === activeIndex && "bg-secondary",
                           )}
                         >
                           <button
@@ -562,10 +832,11 @@ const Navbar = () => {
       <div
         style={{ top: headerHeight || 136 }}
         className={cn(
-          "fixed inset-x-0 bottom-0 z-40 flex flex-col gap-1 overflow-y-auto border-t border-border bg-background p-4 pb-8 transition-all duration-200 lg:hidden",
+          "fixed inset-x-0 bottom-0 flex flex-col gap-1 overflow-y-auto border-t border-border bg-background p-4 pb-8 transition-all duration-200 lg:hidden",
+          Z.drawer,
           open
             ? "pointer-events-auto translate-y-0 opacity-100"
-            : "pointer-events-none -translate-y-2 opacity-0"
+            : "pointer-events-none -translate-y-2 opacity-0",
         )}
         aria-hidden={!open}
       >
@@ -580,7 +851,7 @@ const Navbar = () => {
               className={cn(
                 "rounded-xl px-4 py-3 text-base font-medium transition-colors",
                 "bg-secondary text-foreground hover:bg-accent hover:text-accent-foreground",
-                active && "ring-1 ring-primary"
+                active && "ring-1 ring-primary",
               )}
             >
               {item.label}
@@ -588,31 +859,105 @@ const Navbar = () => {
           );
         })}
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => openAuth("login")}
-            className="
-              inline-flex h-11 items-center justify-center rounded-full border border-white/60 bg-white/25 text-sm font-semibold text-foreground
-              backdrop-blur-md transition-all duration-300
-              hover:scale-[1.02] hover:bg-white/40
-              dark:border-white/15 dark:bg-white/10 dark:hover:bg-white/20
-            "
-          >
-            Login
-          </button>
-          <button
-            type="button"
-            onClick={() => openAuth("register")}
-            className="
-              inline-flex h-11 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground
-              shadow-sm transition-all duration-300
-              hover:scale-[1.02] hover:bg-primary/90
-            "
-          >
-            Register
-          </button>
-        </div>
+        {authChecked && user && (
+          <div className="mt-3 rounded-2xl border border-border/70 bg-secondary/40 p-3">
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-primary to-amber-400 text-sm font-bold text-[#2B1B10]">
+                {user.profileImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={user.profileImage}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  initialsOf(user.name)
+                )}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-foreground">
+                  {user.name}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {user.email}
+                </p>
+              </div>
+              <span
+                className={cn(
+                  "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                  isAdmin
+                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                    : "bg-primary/15 text-primary",
+                )}
+              >
+                {isAdmin ? "Admin" : "Customer"}
+              </span>
+            </div>
+
+            <div className="mt-3 grid gap-1">
+              <button
+                type="button"
+                onClick={goToDashboard}
+                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-foreground transition-colors hover:bg-background/60"
+              >
+                <LayoutDashboard className="h-4 w-4 shrink-0 text-primary" />
+                {isAdmin ? "Go to dashboard" : "Go to my portal"}
+              </button>
+
+              {USER_MENU_ITEMS.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-background/60 hover:text-foreground"
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
+              >
+                <LogOut className="h-4 w-4 shrink-0" />
+                Sign out
+              </button>
+            </div>
+          </div>
+        )}
+
+        {authChecked && !user && (
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => openAuth("login")}
+              className="
+                inline-flex h-11 items-center justify-center rounded-full border border-white/60 bg-white/25 text-sm font-semibold text-foreground
+                backdrop-blur-md transition-all duration-300
+                hover:scale-[1.02] hover:bg-white/40
+                dark:border-white/15 dark:bg-white/10 dark:hover:bg-white/20
+              "
+            >
+              Login
+            </button>
+            <button
+              type="button"
+              onClick={() => openAuth("register")}
+              className="
+                inline-flex h-11 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground
+                shadow-sm transition-all duration-300
+                hover:scale-[1.02] hover:bg-primary/90
+              "
+            >
+              Register
+            </button>
+          </div>
+        )}
       </div>
 
       <AuthModal

@@ -9,7 +9,6 @@ export type SafeUser = {
   provider?: string;
   isVerified?: boolean;
 };
-
 export type DashboardNavItem = {
   name: string;
   href: string;

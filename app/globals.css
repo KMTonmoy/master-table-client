@@ -8,11 +8,13 @@
    is needed. */
 
 @custom-variant dark (&:is(.dark *));
+
 @keyframes shimmer {
   100% {
     transform: translateX(100%);
   }
 }
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -219,6 +221,7 @@
 
   /* Accessibility: respect users who've asked for reduced motion. */
   @media (prefers-reduced-motion: reduce) {
+
     *,
     *::before,
     *::after {
@@ -267,4 +270,15 @@
     max-width: 1200px;
     margin-inline: auto;
   }
+}
+
+@layer base {
+  body {
+    isolation: isolate;
+  }
+}
+
+.top-most {
+  position: relative;
+  z-index: 2147483647;
 }
