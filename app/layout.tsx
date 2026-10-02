@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "next-themes";
 import SiteShell from "@/components/layout/site-shell";
 import { AuthProvider } from "@/context/AuthContext";
+import { CartProvider } from "@/components/providers/cart-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,7 +31,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
           <AuthProvider>
-            <SiteShell>{children}</SiteShell>
+            <CartProvider>
+              <SiteShell>{children}</SiteShell>
+            </CartProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

@@ -18,19 +18,24 @@ import {
   History,
   LayoutDashboard,
   Loader2,
+  LogIn,
   LogOut,
   Menu,
   Moon,
   Package,
   Search,
+  ShoppingCart,
   Sun,
   Trash2,
   UserCog,
+  UserPlus,
   X,
+  CalendarCheck,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import AuthModal from "./auth-modal";
+import { useCart } from "@/components/providers/cart-provider";
 import type { AuthMode, AuthUser } from "@/types/auth.types";
 
 const API_URL = (
@@ -111,10 +116,20 @@ const initialsOf = (name: string) => {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 };
 
+const formatCartCount = (n: number) => {
+  if (n <= 0) return null;
+  if (n > 9) return "9+";
+  return String(n);
+};
+
 const USER_MENU_ITEMS = [
   { label: "My profile", href: "/account/profile", icon: UserCog },
   { label: "My orders", href: "/account/orders", icon: Package },
-  { label: "Order history", href: "/account/history", icon: History },
+  {
+    label: "My reservations",
+    href: "/account/reservations",
+    icon: CalendarCheck,
+  },
 ];
 
 const Navbar = () => {
@@ -122,6 +137,7 @@ const Navbar = () => {
   const router = useRouter();
   const reduce = useReducedMotion();
   const { setTheme, resolvedTheme } = useTheme();
+  const { cart } = useCart();
 
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -133,14 +149,18 @@ const Navbar = () => {
   const [activeIndex, setActiveIndex] = useState(-1);
   const [headerHeight, setHeaderHeight] = useState(0);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [cartPulse, setCartPulse] = useState(0);
   const [isPending, startTransition] = useTransition();
 
   const headerRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const mobileUserMenuRef = useRef<HTMLDivElement>(null);
+  const prevCartRef = useRef(0);
 
   const rawHistory = useSyncExternalStore(
     subscribeToHistory,
@@ -149,10 +169,14 @@ const Navbar = () => {
   );
   const history = useMemo(() => parseHistory(rawHistory), [rawHistory]);
 
+  const cartCount = cart.count;
+  const cartBadge = formatCartCount(cartCount);
+
   if (pathname !== drawerPathname) {
     setDrawerPathname(pathname);
     setOpen(false);
     setUserMenuOpen(false);
+    setMobileUserMenuOpen(false);
   }
 
   useEffect(() => {
@@ -177,6 +201,13 @@ const Navbar = () => {
       cancelled = true;
     };
   }, [pathname]);
+
+  useEffect(() => {
+    if (cartCount > prevCartRef.current) {
+      setCartPulse((p) => p + 1);
+    }
+    prevCartRef.current = cartCount;
+  }, [cartCount]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -256,6 +287,27 @@ const Navbar = () => {
       document.removeEventListener("keydown", onKey);
     };
   }, [userMenuOpen]);
+
+  useEffect(() => {
+    if (!mobileUserMenuOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (
+        mobileUserMenuRef.current &&
+        !mobileUserMenuRef.current.contains(e.target as Node)
+      ) {
+        setMobileUserMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileUserMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [mobileUserMenuOpen]);
 
   useEffect(() => {
     if (activeIndex < 0) return;
@@ -387,6 +439,7 @@ const Navbar = () => {
     } catch {}
     setUser(null);
     setUserMenuOpen(false);
+    setMobileUserMenuOpen(false);
     setOpen(false);
     router.replace("/");
     router.refresh();
@@ -394,8 +447,14 @@ const Navbar = () => {
 
   const goToDashboard = () => {
     setUserMenuOpen(false);
+    setMobileUserMenuOpen(false);
+    setOpen(false);
     router.push(isAdmin ? "/dashboard" : "/account/orders");
   };
+
+  const cartLabel = cartCount
+    ? `Cart, ${cartCount} item${cartCount === 1 ? "" : "s"}`
+    : "Cart";
 
   return (
     <>
@@ -407,7 +466,7 @@ const Navbar = () => {
           scrolled && "shadow-[0_8px_24px_-12px_rgba(74,46,32,0.15)]",
         )}
       >
-        <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between gap-4 px-4 sm:h-[72px] sm:gap-6 sm:px-5">
+        <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between gap-3 px-4 sm:h-[72px] sm:gap-6 sm:px-5">
           <Link
             href="/"
             aria-label="Master Table home"
@@ -448,12 +507,12 @@ const Navbar = () => {
             </ul>
           </nav>
 
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <button
               type="button"
               aria-label="Toggle theme"
               onClick={() => setTheme(isDark ? "light" : "dark")}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-foreground/70 transition-all duration-300 hover:scale-[1.05] hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:w-9"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-foreground/70 transition-all duration-300 hover:scale-[1.05] hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {isDark ? (
                 <Sun className="h-5 w-5" />
@@ -462,23 +521,228 @@ const Navbar = () => {
               )}
             </button>
 
+            <Link
+              href="/cart"
+              aria-label={cartLabel}
+              className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-foreground/70 transition-all duration-300 hover:scale-[1.05] hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <motion.span
+                key={cartPulse}
+                animate={
+                  reduce
+                    ? undefined
+                    : {
+                        scale: [1, 1.18, 1],
+                        rotate: [0, -8, 8, 0],
+                      }
+                }
+                transition={{ duration: 0.45, ease: "easeOut" }}
+                className="inline-flex"
+              >
+                <ShoppingCart className="h-5 w-5" />
+              </motion.span>
+
+              <AnimatePresence>
+                {cartBadge && (
+                  <motion.span
+                    key="badge"
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 520,
+                      damping: 24,
+                    }}
+                    aria-hidden
+                    className="absolute -right-0.5 -top-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-[#2B1B10] shadow-[0_0_0_2px_var(--background)]"
+                  >
+                    {cartBadge}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </Link>
+
             {!authChecked ? (
-              <div className="hidden h-9 w-24 animate-pulse rounded-full bg-secondary lg:block" />
+              <>
+                <div className="hidden h-9 w-24 animate-pulse rounded-full bg-secondary lg:block" />
+                <div className="h-9 w-16 animate-pulse rounded-full bg-secondary lg:hidden" />
+              </>
             ) : user ? (
-              <div ref={userMenuRef} className="relative hidden lg:block">
-                <button
-                  type="button"
-                  onClick={() => setUserMenuOpen((v) => !v)}
-                  aria-haspopup="menu"
-                  aria-expanded={userMenuOpen}
-                  className={cn(
-                    "group flex h-9 items-center gap-2 rounded-full border border-border bg-background/60 pl-1 pr-3 transition-all duration-300",
-                    "hover:border-primary/40 hover:bg-secondary",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    userMenuOpen && "border-primary/60 bg-secondary",
-                  )}
-                >
-                  <span className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-primary to-amber-400 text-[11px] font-bold text-[#2B1B10]">
+              <>
+                <div ref={userMenuRef} className="relative hidden lg:block">
+                  <button
+                    type="button"
+                    onClick={() => setUserMenuOpen((v) => !v)}
+                    aria-haspopup="menu"
+                    aria-expanded={userMenuOpen}
+                    className={cn(
+                      "group flex h-9 items-center gap-2 rounded-full border border-border bg-background/60 pl-1 pr-3 transition-all duration-300",
+                      "hover:border-primary/40 hover:bg-secondary",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      userMenuOpen && "border-primary/60 bg-secondary",
+                    )}
+                  >
+                    <span className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-primary to-amber-400 text-[11px] font-bold text-[#2B1B10]">
+                      {user.profileImage ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={user.profileImage}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        initialsOf(user.name)
+                      )}
+                      {isAdmin && (
+                        <span
+                          aria-hidden
+                          className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background"
+                        />
+                      )}
+                    </span>
+                    <span className="max-w-[110px] truncate text-sm font-medium text-foreground">
+                      {user.name.split(" ")[0]}
+                    </span>
+                    <ChevronDown
+                      className={cn(
+                        "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300",
+                        userMenuOpen && "rotate-180",
+                      )}
+                    />
+                  </button>
+
+                  <AnimatePresence>
+                    {userMenuOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        role="menu"
+                        className={cn(
+                          "absolute right-0 top-[calc(100%+10px)] w-72 origin-top-right overflow-hidden rounded-2xl border border-border bg-background shadow-[0_18px_40px_-16px_rgba(74,46,32,0.35)]",
+                          Z.userDropdown,
+                        )}
+                      >
+                        <div className="relative overflow-hidden border-b border-border/60 bg-gradient-to-br from-primary/15 via-primary/5 to-transparent px-4 py-4">
+                          <div
+                            aria-hidden
+                            className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-primary/20 blur-2xl"
+                          />
+                          <div className="relative flex items-center gap-3">
+                            <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-primary to-amber-400 text-sm font-bold text-[#2B1B10] shadow-md">
+                              {user.profileImage ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={user.profileImage}
+                                  alt=""
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                initialsOf(user.name)
+                              )}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-foreground">
+                                {user.name}
+                              </p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {user.email}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="relative mt-3 flex flex-wrap gap-1.5">
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                                isAdmin
+                                  ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                                  : "bg-primary/15 text-primary",
+                              )}
+                            >
+                              {isAdmin ? "Admin" : "Customer"}
+                            </span>
+                            {user.isVerified && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
+                                Verified
+                              </span>
+                            )}
+                            <span className="inline-flex items-center gap-1 rounded-full bg-foreground/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                              {user.provider}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="p-1.5">
+                          <button
+                            type="button"
+                            onClick={goToDashboard}
+                            role="menuitem"
+                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-foreground transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:bg-secondary"
+                          >
+                            <LayoutDashboard className="h-4 w-4 shrink-0 text-primary" />
+                            {isAdmin ? "Go to dashboard" : "Go to my portal"}
+                          </button>
+                        </div>
+
+                        <div className="border-t border-border/60 p-1.5">
+                          {USER_MENU_ITEMS.map((item) => {
+                            const Icon = item.icon;
+                            const active = isActive(item.href);
+                            return (
+                              <Link
+                                key={item.href}
+                                href={item.href}
+                                role="menuitem"
+                                onClick={() => setUserMenuOpen(false)}
+                                aria-current={active ? "page" : undefined}
+                                className={cn(
+                                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                                  "hover:bg-secondary focus-visible:outline-none focus-visible:bg-secondary",
+                                  active
+                                    ? "bg-secondary text-foreground"
+                                    : "text-muted-foreground",
+                                )}
+                              >
+                                <Icon className="h-4 w-4 shrink-0" />
+                                {item.label}
+                              </Link>
+                            );
+                          })}
+                        </div>
+
+                        <div className="border-t border-border/60 p-1.5">
+                          <button
+                            type="button"
+                            onClick={handleLogout}
+                            role="menuitem"
+                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:bg-destructive/10"
+                          >
+                            <LogOut className="h-4 w-4 shrink-0" />
+                            Sign out
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <div ref={mobileUserMenuRef} className="relative lg:hidden">
+                  <button
+                    type="button"
+                    onClick={() => setMobileUserMenuOpen((v) => !v)}
+                    aria-haspopup="menu"
+                    aria-expanded={mobileUserMenuOpen}
+                    aria-label="Open account menu"
+                    className={cn(
+                      "relative inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-primary to-amber-400 text-[11px] font-bold text-[#2B1B10] transition-all duration-300",
+                      "hover:scale-[1.05]",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                      mobileUserMenuOpen &&
+                        "ring-2 ring-primary/60 ring-offset-2 ring-offset-background",
+                    )}
+                  >
                     {user.profileImage ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -495,133 +759,116 @@ const Navbar = () => {
                         className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background"
                       />
                     )}
-                  </span>
-                  <span className="max-w-[110px] truncate text-sm font-medium text-foreground">
-                    {user.name.split(" ")[0]}
-                  </span>
-                  <ChevronDown
-                    className={cn(
-                      "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300",
-                      userMenuOpen && "rotate-180",
-                    )}
-                  />
-                </button>
+                  </button>
 
-                <AnimatePresence>
-                  {userMenuOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -6, scale: 0.97 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -6, scale: 0.97 }}
-                      transition={{ duration: 0.15, ease: "easeOut" }}
-                      role="menu"
-                      className={cn(
-                        "absolute right-0 top-[calc(100%+10px)] w-72 origin-top-right overflow-hidden rounded-2xl border border-border bg-background shadow-[0_18px_40px_-16px_rgba(74,46,32,0.35)]",
-                        Z.userDropdown,
-                      )}
-                    >
-                      <div className="relative overflow-hidden border-b border-border/60 bg-gradient-to-br from-primary/15 via-primary/5 to-transparent px-4 py-4">
-                        <div
-                          aria-hidden
-                          className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-primary/20 blur-2xl"
-                        />
-                        <div className="relative flex items-center gap-3">
-                          <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-primary to-amber-400 text-sm font-bold text-[#2B1B10] shadow-md">
-                            {user.profileImage ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={user.profileImage}
-                                alt=""
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              initialsOf(user.name)
-                            )}
-                          </span>
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-foreground">
-                              {user.name}
-                            </p>
-                            <p className="truncate text-xs text-muted-foreground">
-                              {user.email}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="relative mt-3 flex flex-wrap gap-1.5">
-                          <span
-                            className={cn(
-                              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                              isAdmin
-                                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                                : "bg-primary/15 text-primary",
-                            )}
-                          >
-                            {isAdmin ? "Admin" : "Customer"}
-                          </span>
-                          {user.isVerified && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
-                              Verified
+                  <AnimatePresence>
+                    {mobileUserMenuOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        role="menu"
+                        className={cn(
+                          "absolute right-0 top-[calc(100%+10px)] w-64 origin-top-right overflow-hidden rounded-2xl border border-border bg-background shadow-[0_18px_40px_-16px_rgba(74,46,32,0.35)]",
+                          Z.userDropdown,
+                        )}
+                      >
+                        <div className="relative overflow-hidden border-b border-border/60 bg-gradient-to-br from-primary/15 via-primary/5 to-transparent px-4 py-4">
+                          <div
+                            aria-hidden
+                            className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-primary/20 blur-2xl"
+                          />
+                          <div className="relative flex items-center gap-3">
+                            <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-primary to-amber-400 text-sm font-bold text-[#2B1B10] shadow-md">
+                              {user.profileImage ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={user.profileImage}
+                                  alt=""
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                initialsOf(user.name)
+                              )}
                             </span>
-                          )}
-                          <span className="inline-flex items-center gap-1 rounded-full bg-foreground/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                            {user.provider}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="p-1.5">
-                        <button
-                          type="button"
-                          onClick={goToDashboard}
-                          role="menuitem"
-                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-foreground transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:bg-secondary"
-                        >
-                          <LayoutDashboard className="h-4 w-4 shrink-0 text-primary" />
-                          {isAdmin ? "Go to dashboard" : "Go to my portal"}
-                        </button>
-                      </div>
-
-                      <div className="border-t border-border/60 p-1.5">
-                        {USER_MENU_ITEMS.map((item) => {
-                          const Icon = item.icon;
-                          const active = isActive(item.href);
-                          return (
-                            <Link
-                              key={item.href}
-                              href={item.href}
-                              role="menuitem"
-                              onClick={() => setUserMenuOpen(false)}
-                              aria-current={active ? "page" : undefined}
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-foreground">
+                                {user.name}
+                              </p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {user.email}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="relative mt-3 flex flex-wrap gap-1.5">
+                            <span
                               className={cn(
-                                "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-                                "hover:bg-secondary focus-visible:outline-none focus-visible:bg-secondary",
-                                active
-                                  ? "bg-secondary text-foreground"
-                                  : "text-muted-foreground",
+                                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                                isAdmin
+                                  ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                                  : "bg-primary/15 text-primary",
                               )}
                             >
-                              <Icon className="h-4 w-4 shrink-0" />
-                              {item.label}
-                            </Link>
-                          );
-                        })}
-                      </div>
+                              {isAdmin ? "Admin" : "Customer"}
+                            </span>
+                          </div>
+                        </div>
 
-                      <div className="border-t border-border/60 p-1.5">
-                        <button
-                          type="button"
-                          onClick={handleLogout}
-                          role="menuitem"
-                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:bg-destructive/10"
-                        >
-                          <LogOut className="h-4 w-4 shrink-0" />
-                          Sign out
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+                        <div className="p-1.5">
+                          <button
+                            type="button"
+                            onClick={goToDashboard}
+                            role="menuitem"
+                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-foreground transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:bg-secondary"
+                          >
+                            <LayoutDashboard className="h-4 w-4 shrink-0 text-primary" />
+                            {isAdmin ? "Go to dashboard" : "Go to my portal"}
+                          </button>
+                        </div>
+
+                        <div className="border-t border-border/60 p-1.5">
+                          {USER_MENU_ITEMS.map((item) => {
+                            const Icon = item.icon;
+                            const active = isActive(item.href);
+                            return (
+                              <Link
+                                key={item.href}
+                                href={item.href}
+                                role="menuitem"
+                                onClick={() => setMobileUserMenuOpen(false)}
+                                aria-current={active ? "page" : undefined}
+                                className={cn(
+                                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                                  "hover:bg-secondary focus-visible:outline-none focus-visible:bg-secondary",
+                                  active
+                                    ? "bg-secondary text-foreground"
+                                    : "text-muted-foreground",
+                                )}
+                              >
+                                <Icon className="h-4 w-4 shrink-0" />
+                                {item.label}
+                              </Link>
+                            );
+                          })}
+                        </div>
+
+                        <div className="border-t border-border/60 p-1.5">
+                          <button
+                            type="button"
+                            onClick={handleLogout}
+                            role="menuitem"
+                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:bg-destructive/10"
+                          >
+                            <LogOut className="h-4 w-4 shrink-0" />
+                            Sign out
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </>
             ) : (
               <>
                 <button
@@ -650,6 +897,24 @@ const Navbar = () => {
                 >
                   Register
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => openAuth("login")}
+                  aria-label="Sign in"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background/60 text-foreground/80 transition-all duration-300 hover:border-primary/40 hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
+                >
+                  <LogIn className="h-4 w-4" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => openAuth("register")}
+                  aria-label="Create account"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-all duration-300 hover:scale-[1.05] hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background lg:hidden"
+                >
+                  <UserPlus className="h-4 w-4" />
+                </button>
               </>
             )}
 
@@ -658,7 +923,7 @@ const Navbar = () => {
               aria-label={open ? "Close menu" : "Open menu"}
               aria-expanded={open}
               onClick={() => setOpen((v) => !v)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-foreground/70 transition-all duration-300 hover:scale-[1.05] hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:w-9 lg:hidden"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-foreground/70 transition-all duration-300 hover:scale-[1.05] hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
             >
               {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
@@ -859,105 +1124,21 @@ const Navbar = () => {
           );
         })}
 
-        {authChecked && user && (
-          <div className="mt-3 rounded-2xl border border-border/70 bg-secondary/40 p-3">
-            <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-primary to-amber-400 text-sm font-bold text-[#2B1B10]">
-                {user.profileImage ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={user.profileImage}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  initialsOf(user.name)
-                )}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-foreground">
-                  {user.name}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {user.email}
-                </p>
-              </div>
-              <span
-                className={cn(
-                  "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                  isAdmin
-                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                    : "bg-primary/15 text-primary",
-                )}
-              >
-                {isAdmin ? "Admin" : "Customer"}
-              </span>
-            </div>
-
-            <div className="mt-3 grid gap-1">
-              <button
-                type="button"
-                onClick={goToDashboard}
-                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-foreground transition-colors hover:bg-background/60"
-              >
-                <LayoutDashboard className="h-4 w-4 shrink-0 text-primary" />
-                {isAdmin ? "Go to dashboard" : "Go to my portal"}
-              </button>
-
-              {USER_MENU_ITEMS.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setOpen(false)}
-                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-background/60 hover:text-foreground"
-                  >
-                    <Icon className="h-4 w-4 shrink-0" />
-                    {item.label}
-                  </Link>
-                );
-              })}
-
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
-              >
-                <LogOut className="h-4 w-4 shrink-0" />
-                Sign out
-              </button>
-            </div>
-          </div>
-        )}
-
-        {authChecked && !user && (
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => openAuth("login")}
-              className="
-                inline-flex h-11 items-center justify-center rounded-full border border-white/60 bg-white/25 text-sm font-semibold text-foreground
-                backdrop-blur-md transition-all duration-300
-                hover:scale-[1.02] hover:bg-white/40
-                dark:border-white/15 dark:bg-white/10 dark:hover:bg-white/20
-              "
-            >
-              Login
-            </button>
-            <button
-              type="button"
-              onClick={() => openAuth("register")}
-              className="
-                inline-flex h-11 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground
-                shadow-sm transition-all duration-300
-                hover:scale-[1.02] hover:bg-primary/90
-              "
-            >
-              Register
-            </button>
-          </div>
-        )}
+        <Link
+          href="/cart"
+          onClick={() => setOpen(false)}
+          className="flex items-center justify-between rounded-xl bg-secondary px-4 py-3 text-base font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+        >
+          <span className="inline-flex items-center gap-3">
+            <ShoppingCart className="h-5 w-5 text-primary" />
+            Cart
+          </span>
+          {cartBadge && (
+            <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-2 text-xs font-bold text-[#2B1B10]">
+              {cartBadge}
+            </span>
+          )}
+        </Link>
       </div>
 
       <AuthModal

@@ -20,7 +20,10 @@ type Props = {
   mode: AuthMode;
   onClose: () => void;
   onModeChange: (mode: AuthMode) => void;
+  onSuccess?: () => void;
 };
+
+const Z_AUTH_MODAL = "z-[10100]";
 
 const GoogleIcon = ({ className }: { className?: string }) => (
   <svg
@@ -148,7 +151,13 @@ const SocialButton = ({
   );
 };
 
-const AuthModal = ({ open, mode, onClose, onModeChange }: Props) => {
+const AuthModal = ({
+  open,
+  mode,
+  onClose,
+  onModeChange,
+  onSuccess,
+}: Props) => {
   const {
     login,
     register,
@@ -161,7 +170,7 @@ const AuthModal = ({ open, mode, onClose, onModeChange }: Props) => {
   const [registerForm, setRegisterForm] =
     useState<RegisterForm>(INITIAL_REGISTER);
   const [forgotForm, setForgotForm] = useState<ForgotPasswordForm>(
-    INITIAL_FORGOT_PASSWORD,
+    INITIAL_FORGOT_PASSWORD
   );
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -188,6 +197,15 @@ const AuthModal = ({ open, mode, onClose, onModeChange }: Props) => {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -195,6 +213,7 @@ const AuthModal = ({ open, mode, onClose, onModeChange }: Props) => {
     try {
       await login(loginForm.email, loginForm.password);
       setLoginForm(INITIAL_LOGIN);
+      onSuccess?.();
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
@@ -221,9 +240,10 @@ const AuthModal = ({ open, mode, onClose, onModeChange }: Props) => {
       await register(
         registerForm.name,
         registerForm.email,
-        registerForm.password,
+        registerForm.password
       );
       setRegisterForm(INITIAL_REGISTER);
+      onSuccess?.();
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
@@ -243,7 +263,7 @@ const AuthModal = ({ open, mode, onClose, onModeChange }: Props) => {
       setForgotForm(INITIAL_FORGOT_PASSWORD);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Could not send reset link",
+        err instanceof Error ? err.message : "Could not send reset link"
       );
     } finally {
       setSubmitting(false);
@@ -263,7 +283,10 @@ const AuthModal = ({ open, mode, onClose, onModeChange }: Props) => {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          className={cn(
+            "fixed inset-0 flex items-center justify-center p-4",
+            Z_AUTH_MODAL
+          )}
         >
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
@@ -341,7 +364,7 @@ const AuthModal = ({ open, mode, onClose, onModeChange }: Props) => {
                         "flex-1 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-300",
                         isLogin
                           ? "bg-primary text-primary-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground",
+                          : "text-muted-foreground hover:text-foreground"
                       )}
                     >
                       Login
@@ -353,7 +376,7 @@ const AuthModal = ({ open, mode, onClose, onModeChange }: Props) => {
                         "flex-1 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-300",
                         isRegister
                           ? "bg-primary text-primary-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground",
+                          : "text-muted-foreground hover:text-foreground"
                       )}
                     >
                       Register
