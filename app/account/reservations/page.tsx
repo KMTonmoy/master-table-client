@@ -23,7 +23,6 @@ import {
   XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/context/AuthContext";
 
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
@@ -116,21 +115,6 @@ const formatDate = (value: string) => {
   });
 };
 
-const formatDateShort = (value: string) => {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-};
-
-const monthKey = (value: string) => {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "Unknown";
-  return d.toLocaleString("en-US", { month: "long", year: "numeric" });
-};
-
 const isUpcoming = (r: Reservation) => {
   if (!r.date) return false;
   const today = new Date();
@@ -142,7 +126,6 @@ const isUpcoming = (r: Reservation) => {
 const ReservationsPage = () => {
   const router = useRouter();
   const reduce = useReducedMotion();
-  const { user, isLoading: authLoading } = useAuth();
 
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -153,12 +136,6 @@ const ReservationsPage = () => {
   const [cancelError, setCancelError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      router.replace("/");
-      return;
-    }
-
     let cancelled = false;
 
     (async () => {
@@ -172,6 +149,13 @@ const ReservationsPage = () => {
         setError(null);
       } catch (err) {
         if (cancelled) return;
+        if (
+          axios.isAxiosError(err) &&
+          (err.response?.status === 401 || err.response?.status === 403)
+        ) {
+          router.replace("/");
+          return;
+        }
         setError(extractError(err, "Failed to load your reservations"));
       } finally {
         if (!cancelled) setLoading(false);
@@ -181,7 +165,7 @@ const ReservationsPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [authLoading, user, router]);
+  }, [router]);
 
   const filtered = useMemo(
     () =>
@@ -250,7 +234,7 @@ const ReservationsPage = () => {
     }
   };
 
-  if (authLoading || loading) {
+  if (loading) {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-5xl items-center justify-center px-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -685,7 +669,7 @@ const ReservationRow = ({
                   style.chip
                 )}
               >
-                <span className={cn("h-1.5 w-1.5 rounded-full", style.dot)} />
+                <StatusIcon className="h-3 w-3" />
                 {style.label}
               </span>
             </div>
