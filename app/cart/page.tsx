@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import axios from "axios";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion, type Variants } from "framer-motion";
 import {
   AlertCircle,
   ArrowRight,
@@ -31,6 +31,35 @@ const API_URL = (
 
 const SERVICE_RATE = 0.05;
 const FREE_DELIVERY_MIN = 40;
+const EASE = [0.22, 1, 0.36, 1] as const;
+
+const headerContainer: Variants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1, delayChildren: 0.05 },
+  },
+};
+
+const headerItem: Variants = {
+  hidden: { opacity: 0, y: 30, filter: "blur(8px)" },
+  show: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: { duration: 0.8, ease: EASE },
+  },
+};
+
+const itemReveal: Variants = {
+  hidden: { opacity: 0, y: 30, filter: "blur(8px)" },
+  show: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: { duration: 0.7, ease: EASE },
+  },
+};
 
 const extractError = (err: unknown, fallback: string) => {
   if (axios.isAxiosError(err)) {
@@ -147,7 +176,24 @@ const CartPage = () => {
   if (!authChecked || loading) {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-5xl items-center justify-center px-4">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, ease: EASE }}
+          className="relative"
+        >
+          <motion.span
+            aria-hidden
+            animate={{ scale: [1, 1.6, 1.6], opacity: [0.5, 0, 0] }}
+            transition={{
+              duration: 2,
+              ease: "easeOut",
+              repeat: Infinity,
+            }}
+            className="absolute inset-0 rounded-full border border-[#E0A526]"
+          />
+          <Loader2 className="h-8 w-8 animate-spin text-[#E0A526]" />
+        </motion.div>
       </div>
     );
   }
@@ -155,25 +201,64 @@ const CartPage = () => {
   if (!user) {
     return (
       <div className="mx-auto flex min-h-[70vh] max-w-xl items-center justify-center px-4 py-12">
-        <div className="w-full rounded-3xl border border-border bg-card/70 p-8 text-center backdrop-blur-xl sm:p-10">
-          <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/15 text-primary">
-            <ShoppingCart className="h-8 w-8" />
-          </span>
-          <h1 className="mt-5 font-heading text-2xl font-bold text-foreground">
-            Sign in to view your cart
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Your cart is saved to your account so you can pick up where you left
-            off on any device.
-          </p>
-          <Link
-            href="/login"
-            className="mt-6 inline-flex h-11 items-center gap-2 rounded-2xl bg-primary px-6 text-sm font-semibold text-[#2B1B10] transition-all hover:bg-primary/90 hover:shadow-md"
-          >
-            Sign in
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
+        <motion.div
+          initial={reduce ? false : { opacity: 0, y: 30, filter: "blur(8px)" }}
+          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+          transition={{ duration: 0.8, ease: EASE }}
+          className="relative w-full overflow-hidden rounded-3xl border border-border bg-card/70 p-8 text-center backdrop-blur-xl sm:p-10"
+        >
+          <motion.div
+            aria-hidden
+            initial={{ scale: 0.7, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 1.4, ease: EASE, delay: 0.3 }}
+            className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-[#E0A526]/20 blur-3xl"
+          />
+          <div className="relative">
+            <motion.span
+              initial={{ scale: 0, rotate: -45 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{
+                type: "spring",
+                stiffness: 220,
+                damping: 20,
+                delay: 0.2,
+              }}
+              className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#E0A526]/15 text-[#E0A526]"
+            >
+              <ShoppingCart className="h-8 w-8" />
+            </motion.span>
+            <h1 className="mt-5 font-heading text-2xl font-bold text-foreground">
+              Sign in to view your cart
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Your cart is saved to your account so you can pick up where you
+              left off on any device.
+            </p>
+            <motion.div
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              transition={{ duration: 0.3, ease: EASE }}
+            >
+              <Link
+                href="/login"
+                className="
+                  group/btn relative mt-6 inline-flex h-11 items-center gap-2 overflow-hidden rounded-2xl
+                  bg-gradient-to-br from-[#E0A526] to-[#C78E1E] px-6 text-sm font-semibold text-[#2B1B10]
+                  shadow-[0_10px_28px_-10px_rgba(224,165,38,0.6)]
+                  transition-shadow duration-300
+                  hover:shadow-[0_14px_32px_-10px_rgba(224,165,38,0.75)]
+                "
+              >
+                <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-1000 ease-out group-hover/btn:translate-x-full" />
+                <span className="relative flex items-center gap-2">
+                  Sign in
+                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover/btn:translate-x-1" />
+                </span>
+              </Link>
+            </motion.div>
+          </div>
+        </motion.div>
       </div>
     );
   }
@@ -184,32 +269,69 @@ const CartPage = () => {
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 20, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.5, ease: "easeOut" }}
+          transition={{ duration: 0.5, ease: EASE }}
           className="relative w-full overflow-hidden rounded-3xl border border-border bg-card/70 p-8 text-center backdrop-blur-xl sm:p-10"
         >
-          <div
+          <motion.div
             aria-hidden
-            className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-emerald-500/20 blur-3xl"
+            animate={{
+              opacity: [0.3, 0.6, 0.3],
+              scale: [1, 1.15, 1],
+            }}
+            transition={{
+              duration: 3.5,
+              ease: "easeInOut",
+              repeat: Infinity,
+            }}
+            className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-emerald-500/25 blur-3xl"
           />
           <div className="relative">
-            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-500">
+            <motion.span
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{
+                type: "spring",
+                stiffness: 220,
+                damping: 18,
+                delay: 0.15,
+              }}
+              className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-500 shadow-[0_0_30px_rgba(16,185,129,0.4)]"
+            >
               <CheckCircle2 className="h-8 w-8" />
-            </span>
-            <h1 className="mt-5 font-heading text-3xl font-bold text-foreground">
+            </motion.span>
+            <motion.h1
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, ease: EASE, delay: 0.3 }}
+              className="mt-5 font-heading text-3xl font-bold text-foreground"
+            >
               Order placed
-            </h1>
-            <p className="mt-2 text-base text-muted-foreground">
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, ease: EASE, delay: 0.4 }}
+              className="mt-2 text-base text-muted-foreground"
+            >
               Your order{" "}
-              <span className="font-semibold text-primary">{successId}</span> is
-              now in the kitchen.
-            </p>
-            <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
+              <span className="font-semibold text-[#E0A526]">{successId}</span>{" "}
+              is now in the kitchen.
+            </motion.p>
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, ease: EASE, delay: 0.5 }}
+              className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center"
+            >
               <Link
                 href="/account/orders"
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-primary px-6 text-sm font-semibold text-[#2B1B10] transition-all hover:bg-primary/90 hover:shadow-md"
+                className="group/btn relative inline-flex h-11 items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-br from-[#E0A526] to-[#C78E1E] px-6 text-sm font-semibold text-[#2B1B10] shadow-[0_10px_28px_-10px_rgba(224,165,38,0.6)] transition-shadow duration-300 hover:shadow-[0_14px_32px_-10px_rgba(224,165,38,0.75)]"
               >
-                View my orders
-                <ArrowRight className="h-4 w-4" />
+                <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-1000 ease-out group-hover/btn:translate-x-full" />
+                <span className="relative flex items-center gap-2">
+                  View my orders
+                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover/btn:translate-x-1" />
+                </span>
               </Link>
               <Link
                 href="/menu"
@@ -217,7 +339,7 @@ const CartPage = () => {
               >
                 Back to menu
               </Link>
-            </div>
+            </motion.div>
           </div>
         </motion.div>
       </div>
@@ -225,71 +347,106 @@ const CartPage = () => {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+    <div className="relative mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-32 left-1/4 h-72 w-72 rounded-full bg-[#E0A526]/12 blur-[100px]"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute bottom-0 right-1/4 h-80 w-80 rounded-full bg-[#C78E1E]/12 blur-[120px]"
+      />
+
       <motion.header
-        initial={reduce ? false : { opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="flex flex-wrap items-end justify-between gap-6"
+        variants={headerContainer}
+        initial="hidden"
+        animate="show"
+        className="relative flex flex-wrap items-end justify-between gap-6"
       >
         <div>
-          <p className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+          <motion.p
+            variants={headerItem}
+            className="inline-flex items-center gap-2 rounded-full border border-[#E0A526]/30 bg-[#E0A526]/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#E0A526]"
+          >
             <ShoppingCart className="h-3.5 w-3.5" />
             Cart
-          </p>
-          <h1 className="mt-4 font-heading text-4xl font-bold leading-tight text-foreground sm:text-5xl">
+          </motion.p>
+          <motion.h1
+            variants={headerItem}
+            className="mt-4 font-heading text-4xl font-bold leading-tight text-foreground sm:text-5xl"
+          >
             Your cart
-          </h1>
-          <p className="mt-2 max-w-2xl text-base text-muted-foreground">
+            <motion.span
+              aria-hidden
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ duration: 1, ease: EASE, delay: 0.5 }}
+              style={{ transformOrigin: "left" }}
+              className="mt-2 block h-[3px] w-20 rounded-full bg-gradient-to-r from-[#E0A526] to-[#C78E1E]"
+            />
+          </motion.h1>
+          <motion.p
+            variants={headerItem}
+            className="mt-3 max-w-2xl text-base text-muted-foreground"
+          >
             {cart.count === 0
               ? "Add dishes from the menu to get started."
               : `${cart.count} item${cart.count === 1 ? "" : "s"} ready to order.`}
-          </p>
+          </motion.p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
+        <motion.div variants={headerItem} className="flex items-center gap-2">
+          <motion.button
             type="button"
             onClick={() => void refresh()}
             aria-label="Refresh cart"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-border bg-background text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            whileHover={{ scale: 1.08, rotate: 180 }}
+            whileTap={{ scale: 0.92 }}
+            transition={{ duration: 0.5, ease: EASE }}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-border bg-background text-muted-foreground transition-colors hover:border-[#E0A526]/40 hover:bg-[#E0A526]/5 hover:text-[#E0A526]"
           >
             <RefreshCw className="h-4 w-4" />
-          </button>
+          </motion.button>
 
           {cart.items.length > 0 && (
-            <button
+            <motion.button
               type="button"
               onClick={() => void handleClear()}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              transition={{ duration: 0.3, ease: EASE }}
               className="inline-flex h-11 items-center gap-2 rounded-2xl border border-border bg-background px-5 text-sm font-medium text-muted-foreground transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
             >
               <Trash2 className="h-4 w-4" />
               Clear cart
-            </button>
+            </motion.button>
           )}
-        </div>
+        </motion.div>
       </motion.header>
 
-      {unavailableItems.length > 0 && (
-        <motion.div
-          initial={reduce ? false : { opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="mt-6 flex items-start gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400"
-        >
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <div>
-            <p className="font-semibold">
-              {unavailableItems.length} item
-              {unavailableItems.length === 1 ? "" : "s"} in your cart{" "}
-              {unavailableItems.length === 1 ? "is" : "are"} no longer available
-            </p>
-            <p className="mt-0.5 text-xs opacity-90">
-              Remove them to continue. Everything else is still ready to order.
-            </p>
-          </div>
-        </motion.div>
-      )}
+      <AnimatePresence>
+        {unavailableItems.length > 0 && (
+          <motion.div
+            initial={reduce ? false : { opacity: 0, y: 10, filter: "blur(6px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            exit={{ opacity: 0, y: -10, filter: "blur(6px)" }}
+            transition={{ duration: 0.5, ease: EASE }}
+            className="mt-6 flex items-start gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400"
+          >
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <p className="font-semibold">
+                {unavailableItems.length} item
+                {unavailableItems.length === 1 ? "" : "s"} in your cart{" "}
+                {unavailableItems.length === 1 ? "is" : "are"} no longer available
+              </p>
+              <p className="mt-0.5 text-xs opacity-90">
+                Remove them to continue. Everything else is still ready to order.
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {placingError && (
@@ -297,6 +454,7 @@ const CartPage = () => {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3, ease: EASE }}
             className="mt-6 overflow-hidden"
           >
             <div className="flex items-start gap-3 rounded-2xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
@@ -317,34 +475,72 @@ const CartPage = () => {
 
       {cart.items.length === 0 ? (
         <motion.div
-          initial={reduce ? false : { opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.05 }}
-          className="mt-8 rounded-3xl border border-border bg-card/70 p-10 text-center backdrop-blur-xl sm:p-16"
+          initial={reduce ? false : { opacity: 0, y: 30, filter: "blur(8px)" }}
+          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+          transition={{ duration: 0.8, ease: EASE, delay: 0.15 }}
+          className="relative mt-8 overflow-hidden rounded-3xl border border-border bg-card/70 p-10 text-center backdrop-blur-xl sm:p-16"
         >
-          <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-primary/15 text-primary">
-            <ShoppingBag className="h-9 w-9" />
-          </span>
-          <h2 className="mt-6 font-heading text-2xl font-bold text-foreground">
-            Your cart is empty
-          </h2>
-          <p className="mt-2 mx-auto max-w-md text-base text-muted-foreground">
-            Browse the menu and add a few dishes — they&apos;ll show up here.
-          </p>
-          <Link
-            href="/menu"
-            className="mt-6 inline-flex h-12 items-center gap-2 rounded-2xl bg-primary px-6 text-sm font-semibold text-[#2B1B10] transition-all hover:bg-primary/90 hover:shadow-md"
-          >
-            Explore the menu
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-[#E0A526]/15 blur-3xl"
+          />
+          <div className="relative">
+            <motion.span
+              initial={{ scale: 0, rotate: -45 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{
+                type: "spring",
+                stiffness: 220,
+                damping: 20,
+                delay: 0.3,
+              }}
+              className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#E0A526]/15 text-[#E0A526] shadow-[0_0_30px_rgba(224,165,38,0.3)]"
+            >
+              <ShoppingBag className="h-9 w-9" />
+            </motion.span>
+            <motion.h2
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, ease: EASE, delay: 0.4 }}
+              className="mt-6 font-heading text-2xl font-bold text-foreground"
+            >
+              Your cart is empty
+            </motion.h2>
+            <motion.p
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, ease: EASE, delay: 0.5 }}
+              className="mt-2 mx-auto max-w-md text-base text-muted-foreground"
+            >
+              Browse the menu and add a few dishes — they&apos;ll show up here.
+            </motion.p>
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, ease: EASE, delay: 0.6 }}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              className="mt-6 inline-block"
+            >
+              <Link
+                href="/menu"
+                className="group/btn relative inline-flex h-12 items-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-br from-[#E0A526] to-[#C78E1E] px-6 text-sm font-semibold text-[#2B1B10] shadow-[0_10px_28px_-10px_rgba(224,165,38,0.6)] transition-shadow duration-300 hover:shadow-[0_14px_32px_-10px_rgba(224,165,38,0.75)]"
+              >
+                <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-1000 ease-out group-hover/btn:translate-x-full" />
+                <span className="relative flex items-center gap-2">
+                  Explore the menu
+                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover/btn:translate-x-1" />
+                </span>
+              </Link>
+            </motion.div>
+          </div>
         </motion.div>
       ) : (
-        <div className="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="relative mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <motion.ul
-            initial={reduce ? false : { opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.05 }}
+            variants={headerContainer}
+            initial="hidden"
+            animate="show"
             className="space-y-3"
           >
             <AnimatePresence initial={false}>
@@ -354,26 +550,38 @@ const CartPage = () => {
                   <motion.li
                     key={item.productId}
                     layout
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, x: -32 }}
-                    transition={{ duration: 0.25, ease: "easeOut" }}
+                    variants={itemReveal}
+                    initial="hidden"
+                    animate="show"
+                    exit={{ opacity: 0, x: -32, filter: "blur(6px)" }}
+                    whileHover={{
+                      y: -3,
+                      transition: { duration: 0.3, ease: EASE },
+                    }}
                     className={cn(
-                      "relative overflow-hidden rounded-3xl border bg-card/70 p-4 backdrop-blur-xl sm:p-5",
+                      "group relative overflow-hidden rounded-3xl border bg-card/70 p-4 backdrop-blur-xl sm:p-5",
                       item.available
-                        ? "border-border"
+                        ? "border-border transition-all duration-500 hover:border-[#E0A526]/40 hover:shadow-[0_20px_50px_-20px_rgba(74,46,32,0.3)]"
                         : "border-amber-500/40 bg-amber-500/5",
                     )}
                   >
-                    <div className="flex gap-4">
-                      <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-primary/20 via-primary/5 to-transparent sm:h-24 sm:w-24">
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-[#E0A526]/0 blur-3xl transition-all duration-700 group-hover:bg-[#E0A526]/20"
+                    />
+
+                    <div className="relative flex gap-4">
+                      <motion.div
+                        layout
+                        className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-[#E0A526]/20 via-[#E0A526]/5 to-transparent sm:h-24 sm:w-24"
+                      >
                         {item.image ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={item.image}
                             alt={item.name}
                             className={cn(
-                              "h-full w-full object-cover",
+                              "h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-110",
                               !item.available && "opacity-50 grayscale",
                             )}
                           />
@@ -382,7 +590,11 @@ const CartPage = () => {
                             {item.emoji}
                           </span>
                         )}
-                      </div>
+                        <div
+                          aria-hidden
+                          className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-1000 ease-out group-hover:translate-x-full"
+                        />
+                      </motion.div>
 
                       <div className="flex min-w-0 flex-1 flex-col">
                         <div className="flex items-start justify-between gap-3">
@@ -400,65 +612,100 @@ const CartPage = () => {
                             </p>
 
                             {!item.available && item.reason && (
-                              <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:text-amber-400">
+                              <motion.p
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ duration: 0.4, ease: EASE }}
+                                className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:text-amber-400"
+                              >
                                 <AlertCircle className="h-3.5 w-3.5" />
                                 {item.reason}
-                              </p>
+                              </motion.p>
                             )}
 
                             {item.available && item.priceChanged && (
-                              <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-sky-500/15 px-2.5 py-1 text-xs font-semibold text-sky-700 dark:text-sky-400">
+                              <motion.p
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ duration: 0.4, ease: EASE }}
+                                className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-sky-500/15 px-2.5 py-1 text-xs font-semibold text-sky-700 dark:text-sky-400"
+                              >
                                 Price updated
-                              </p>
+                              </motion.p>
                             )}
                           </div>
 
-                          <button
+                          <motion.button
                             type="button"
                             onClick={() => handleRemove(item)}
                             disabled={busy}
                             aria-label={`Remove ${item.name} from cart`}
+                            whileHover={{ scale: 1.1, rotate: 8 }}
+                            whileTap={{ scale: 0.9 }}
+                            transition={{ duration: 0.25, ease: EASE }}
                             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
                           >
                             <Trash2 className="h-4 w-4" />
-                          </button>
+                          </motion.button>
                         </div>
 
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                           <div className="inline-flex items-center rounded-full border border-border bg-background">
-                            <button
+                            <motion.button
                               type="button"
                               onClick={() => decrease(item)}
                               aria-label={`Decrease ${item.name} quantity`}
                               disabled={!item.available || busy}
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              transition={{ duration: 0.2, ease: EASE }}
                               className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               <Minus className="h-4 w-4" />
-                            </button>
-                            <span className="h-9 w-12 text-center text-sm font-semibold tabular-nums leading-9 text-foreground">
-                              {item.quantity}
-                            </span>
-                            <button
+                            </motion.button>
+                            <AnimatePresence mode="popLayout" initial={false}>
+                              <motion.span
+                                key={item.quantity}
+                                initial={{ opacity: 0, y: -8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 8 }}
+                                transition={{ duration: 0.25, ease: EASE }}
+                                className="h-9 w-12 text-center text-sm font-semibold tabular-nums leading-9 text-foreground"
+                              >
+                                {item.quantity}
+                              </motion.span>
+                            </AnimatePresence>
+                            <motion.button
                               type="button"
                               onClick={() => increase(item)}
                               aria-label={`Increase ${item.name} quantity`}
                               disabled={!item.available || busy}
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              transition={{ duration: 0.2, ease: EASE }}
                               className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               <Plus className="h-4 w-4" />
-                            </button>
+                            </motion.button>
                           </div>
 
-                          <p
-                            className={cn(
-                              "font-heading text-lg font-bold tabular-nums",
-                              item.available
-                                ? "text-primary"
-                                : "text-muted-foreground line-through",
-                            )}
-                          >
-                            {money(item.lineTotal)}
-                          </p>
+                          <AnimatePresence mode="popLayout" initial={false}>
+                            <motion.p
+                              key={item.lineTotal}
+                              initial={{ opacity: 0, y: -8 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: 8 }}
+                              transition={{ duration: 0.3, ease: EASE }}
+                              className={cn(
+                                "font-heading text-lg font-bold tabular-nums",
+                                item.available
+                                  ? "text-[#E0A526]"
+                                  : "text-muted-foreground line-through",
+                              )}
+                            >
+                              {money(item.lineTotal)}
+                            </motion.p>
+                          </AnimatePresence>
                         </div>
                       </div>
                     </div>
@@ -469,22 +716,40 @@ const CartPage = () => {
           </motion.ul>
 
           <motion.aside
-            initial={reduce ? false : { opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
+            initial={reduce ? false : { opacity: 0, y: 30, filter: "blur(8px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            transition={{ duration: 0.8, ease: EASE, delay: 0.2 }}
             className="lg:sticky lg:top-24"
           >
-            <div className="overflow-hidden rounded-3xl border border-border bg-card/70 backdrop-blur-xl">
-              <div className="border-b border-border/70 px-6 py-5">
+            <div className="relative overflow-hidden rounded-3xl border border-border bg-card/70 backdrop-blur-xl">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#E0A526]/60 to-transparent"
+              />
+              <motion.div
+                aria-hidden
+                animate={{
+                  opacity: [0.3, 0.6, 0.3],
+                  scale: [1, 1.1, 1],
+                }}
+                transition={{
+                  duration: 4,
+                  ease: "easeInOut",
+                  repeat: Infinity,
+                }}
+                className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-[#E0A526]/15 blur-3xl"
+              />
+
+              <div className="relative border-b border-border/70 px-6 py-5">
                 <div className="flex items-center gap-2">
-                  <Tag className="h-4 w-4 text-primary" />
+                  <Tag className="h-4 w-4 text-[#E0A526]" />
                   <h2 className="font-heading text-lg font-semibold text-foreground">
                     Order summary
                   </h2>
                 </div>
               </div>
 
-              <dl className="space-y-3 px-6 py-5 text-sm">
+              <dl className="relative space-y-3 px-6 py-5 text-sm">
                 <div className="flex items-center justify-between gap-3">
                   <dt className="text-muted-foreground">
                     Subtotal ({cart.count} item
@@ -517,50 +782,90 @@ const CartPage = () => {
                 </div>
 
                 {subtotal > 0 && subtotal < FREE_DELIVERY_MIN && (
-                  <div className="flex items-start gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2.5 text-xs text-primary">
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, ease: EASE }}
+                    className="flex items-start gap-2 rounded-xl border border-[#E0A526]/30 bg-[#E0A526]/5 px-3 py-2.5 text-xs text-[#E0A526]"
+                  >
                     <Truck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     <span>
                       Add {money(FREE_DELIVERY_MIN - subtotal)} more for free
                       delivery
                     </span>
-                  </div>
+                  </motion.div>
                 )}
 
                 <div className="flex items-center justify-between gap-3 border-t border-border/70 pt-3 font-heading text-lg font-bold text-foreground">
                   <dt>Total</dt>
-                  <dd className="tabular-nums">{money(total)}</dd>
+                  <AnimatePresence mode="popLayout" initial={false}>
+                    <motion.dd
+                      key={total}
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 8 }}
+                      transition={{ duration: 0.3, ease: EASE }}
+                      className="tabular-nums text-[#E0A526]"
+                    >
+                      {money(total)}
+                    </motion.dd>
+                  </AnimatePresence>
                 </div>
               </dl>
 
-              <div className="border-t border-border/70 p-4 sm:p-5">
-                <button
+              <div className="relative border-t border-border/70 p-4 sm:p-5">
+                <motion.button
                   type="button"
                   onClick={placeOrder}
                   disabled={placing || availableItems.length === 0}
-                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-semibold text-[#2B1B10] transition-all hover:bg-primary/90 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+                  whileHover={
+                    placing || availableItems.length === 0
+                      ? undefined
+                      : { scale: 1.02 }
+                  }
+                  whileTap={
+                    placing || availableItems.length === 0
+                      ? undefined
+                      : { scale: 0.98 }
+                  }
+                  transition={{ duration: 0.3, ease: EASE }}
+                  className="
+                    group/btn relative inline-flex h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-2xl
+                    bg-gradient-to-br from-[#E0A526] to-[#C78E1E] text-sm font-semibold text-[#2B1B10]
+                    shadow-[0_10px_28px_-10px_rgba(224,165,38,0.6)]
+                    transition-shadow duration-300
+                    hover:shadow-[0_14px_32px_-10px_rgba(224,165,38,0.75)]
+                    disabled:cursor-not-allowed disabled:opacity-60
+                  "
                 >
+                  <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-1000 ease-out group-hover/btn:translate-x-full" />
                   {placing ? (
-                    <>
+                    <span className="relative flex items-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Placing order…
-                    </>
+                    </span>
                   ) : (
-                    <>
+                    <span className="relative flex items-center gap-2">
                       Place order
-                      <ArrowRight className="h-4 w-4" />
-                    </>
+                      <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover/btn:translate-x-1" />
+                    </span>
                   )}
-                </button>
+                </motion.button>
 
                 {availableItems.length === 0 && cart.items.length > 0 && (
-                  <p className="mt-3 text-center text-xs text-amber-600 dark:text-amber-400">
+                  <motion.p
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, ease: EASE }}
+                    className="mt-3 text-center text-xs text-amber-600 dark:text-amber-400"
+                  >
                     Remove unavailable items to continue.
-                  </p>
+                  </motion.p>
                 )}
 
                 <Link
                   href="/menu"
-                  className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-2xl border border-border text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                  className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-2xl border border-border text-sm font-medium text-muted-foreground transition-colors hover:border-[#E0A526]/40 hover:bg-[#E0A526]/5 hover:text-[#E0A526]"
                 >
                   Continue shopping
                 </Link>

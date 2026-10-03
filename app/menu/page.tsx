@@ -1,6 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import {
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   useParams,
   usePathname,
@@ -9,7 +15,30 @@ import {
 } from "next/navigation";
 import axios from "axios";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ChevronDown, RotateCcw, Search, X } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  RotateCcw,
+  Search,
+  X,
+  Sparkles,
+  UtensilsCrossed,
+  Drumstick,
+  Beef,
+  Fish,
+  Salad,
+  EggFried,
+  Popcorn,
+  CakeSlice,
+  CupSoda,
+  Martini,
+  Leaf,
+  Flame,
+  Circle,
+  Soup,
+  ChefHat,
+  ArrowUpDown,
+} from "lucide-react";
 import ProductCard, {
   type Dish,
   type DishCategory,
@@ -23,25 +52,29 @@ const API_URL = (
 
 type CategoryValue = "all" | DishCategory;
 
-const CATEGORIES: { label: string; value: CategoryValue; emoji: string }[] = [
-  { label: "All", value: "all", emoji: "✨" },
-  { label: "Food", value: "food", emoji: "🍽️" },
-  { label: "Chicken", value: "chicken", emoji: "🍗" },
-  { label: "Beef", value: "beef", emoji: "🥩" },
-  { label: "Seafood", value: "seafood", emoji: "🦐" },
-  { label: "Vegan", value: "vegan", emoji: "🥗" },
-  { label: "Breakfast", value: "breakfast", emoji: "🍳" },
-  { label: "Snacks", value: "snacks", emoji: "🍿" },
-  { label: "Dessert", value: "dessert", emoji: "🍰" },
-  { label: "Soft drink", value: "soft-drink", emoji: "🥤" },
-  { label: "Hard drink", value: "hard-drink", emoji: "🍸" },
+const CATEGORIES: {
+  label: string;
+  value: CategoryValue;
+  Icon: React.ComponentType<{ className?: string }>;
+}[] = [
+  { label: "All", value: "all", Icon: Sparkles },
+  { label: "Food", value: "food", Icon: UtensilsCrossed },
+  { label: "Chicken", value: "chicken", Icon: Drumstick },
+  { label: "Beef", value: "beef", Icon: Beef },
+  { label: "Seafood", value: "seafood", Icon: Fish },
+  { label: "Vegan", value: "vegan", Icon: Salad },
+  { label: "Breakfast", value: "breakfast", Icon: EggFried },
+  { label: "Snacks", value: "snacks", Icon: Popcorn },
+  { label: "Dessert", value: "dessert", Icon: CakeSlice },
+  { label: "Soft drink", value: "soft-drink", Icon: CupSoda },
+  { label: "Hard drink", value: "hard-drink", Icon: Martini },
 ];
 
 const DIETS = [
-  { label: "All", value: "all", dot: "" },
-  { label: "Veg", value: "veg", dot: "bg-emerald-500" },
-  { label: "Vegan", value: "vegan", dot: "bg-lime-500" },
-  { label: "Non-veg", value: "non-veg", dot: "bg-red-500" },
+  { label: "All", value: "all", Icon: Circle },
+  { label: "Veg", value: "veg", Icon: Leaf },
+  { label: "Vegan", value: "vegan", Icon: Salad },
+  { label: "Non-veg", value: "non-veg", Icon: Flame },
 ] as const;
 
 const SORTS = [
@@ -66,6 +99,8 @@ type MenuDish = Dish & DishExtras;
 const CATEGORY_VALUES: string[] = CATEGORIES.map((c) => c.value);
 const DIET_VALUES: string[] = DIETS.map((d) => d.value);
 const SORT_VALUES: string[] = SORTS.map((s) => s.value);
+
+const EASE = [0.22, 1, 0.36, 1] as const;
 
 function parseCategory(value: string | null): CategoryValue {
   return value && CATEGORY_VALUES.includes(value)
@@ -133,11 +168,272 @@ const Ornament = ({ className }: { className?: string }) => (
     aria-hidden
     className={cn("flex items-center justify-center gap-3", className)}
   >
-    <span className="h-px w-14 bg-gradient-to-r from-transparent to-primary/70 sm:w-20" />
-    <span className="h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-primary/20" />
-    <span className="h-px w-14 bg-gradient-to-l from-transparent to-primary/70 sm:w-20" />
+    <span className="h-px w-14 bg-gradient-to-r from-transparent to-[#E0A526]/70 sm:w-20" />
+    <span className="h-2.5 w-2.5 rotate-45 rounded-[3px] bg-gradient-to-br from-[#E0A526] to-[#C78E1E] shadow-[0_0_0_4px_var(--background),0_0_16px_rgba(224,165,38,0.4)]" />
+    <span className="h-px w-14 bg-gradient-to-l from-transparent to-[#E0A526]/70 sm:w-20" />
   </div>
 );
+
+const headerContainer = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.08, delayChildren: 0.05 },
+  },
+};
+
+const headerItem = {
+  hidden: { opacity: 0, y: 24, filter: "blur(8px)" },
+  show: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: { duration: 0.8, ease: EASE },
+  },
+};
+
+/* ------------------------------------------------------------------ */
+/*  LUXURY SORT DROPDOWN                                                */
+/* ------------------------------------------------------------------ */
+type SortDropdownProps = {
+  value: SortValue;
+  onChange: (value: SortValue) => void;
+  reduceMotion: boolean | null;
+};
+
+const SortDropdown = ({ value, onChange, reduceMotion }: SortDropdownProps) => {
+  const [open, setOpen] = useState(false);
+  const [highlighted, setHighlighted] = useState(-1);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+
+  const currentIndex = SORTS.findIndex((s) => s.value === value);
+  const current = SORTS[currentIndex] ?? SORTS[0];
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setHighlighted(-1);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        setHighlighted(-1);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (highlighted < 0 || !listRef.current) return;
+    const el = listRef.current.querySelector(
+      `[data-sort-index="${highlighted}"]`,
+    );
+    el?.scrollIntoView({ block: "nearest" });
+  }, [highlighted]);
+
+  const openWithHighlight = () => {
+    setHighlighted(currentIndex);
+    setOpen(true);
+  };
+
+  const toggle = () => {
+    setOpen((v) => {
+      const next = !v;
+      setHighlighted(next ? currentIndex : -1);
+      return next;
+    });
+  };
+
+  const commit = (v: SortValue) => {
+    onChange(v);
+    setOpen(false);
+    setHighlighted(-1);
+  };
+
+  const onTriggerKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!open) {
+        openWithHighlight();
+        return;
+      }
+      setHighlighted((h) => {
+        if (e.key === "ArrowDown") return (h + 1) % SORTS.length;
+        return h <= 0 ? SORTS.length - 1 : h - 1;
+      });
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      if (open && highlighted >= 0) {
+        commit(SORTS[highlighted].value);
+      } else {
+        toggle();
+      }
+    } else if (e.key === "Home") {
+      setHighlighted(0);
+    } else if (e.key === "End") {
+      setHighlighted(SORTS.length - 1);
+    }
+  };
+
+  const pillTransition = reduceMotion
+    ? { duration: 0 }
+    : { type: "spring" as const, stiffness: 420, damping: 32 };
+
+  return (
+    <div ref={rootRef} className="relative z-40 w-full sm:w-64">
+      <motion.button
+        type="button"
+        onClick={toggle}
+        onKeyDown={onTriggerKeyDown}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        whileTap={reduceMotion ? undefined : { scale: 0.98 }}
+        transition={{ duration: 0.2, ease: EASE }}
+        className={cn(
+          "group/dd relative inline-flex h-[46px] w-full items-center gap-2 overflow-hidden rounded-full border px-4 text-left text-sm font-medium transition-colors",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+          open
+            ? "border-[#E0A526]/70 bg-background shadow-[0_0_0_3px_rgba(224,165,38,0.15)]"
+            : "border-border bg-background/80 hover:border-[#E0A526]/50",
+        )}
+      >
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-[#E0A526]/20 to-transparent transition-transform duration-1000 ease-out group-hover/dd:translate-x-full"
+        />
+        <ArrowUpDown
+          aria-hidden
+          className="relative h-4 w-4 shrink-0 text-[#E0A526]"
+        />
+        <span className="relative min-w-0 flex-1 truncate text-foreground">
+          {current.label}
+        </span>
+        <motion.span
+          aria-hidden
+          animate={{ rotate: open ? 180 : 0 }}
+          transition={{ duration: 0.3, ease: EASE }}
+          className="relative inline-flex"
+        >
+          <ChevronDown className="h-4 w-4 text-[#E0A526]" />
+        </motion.span>
+      </motion.button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={
+              reduceMotion
+                ? { opacity: 0 }
+                : { opacity: 0, y: -8, scale: 0.97, filter: "blur(6px)" }
+            }
+            animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+            exit={
+              reduceMotion
+                ? { opacity: 0 }
+                : { opacity: 0, y: -8, scale: 0.97, filter: "blur(6px)" }
+            }
+            transition={{ duration: 0.25, ease: EASE }}
+            className="
+              absolute left-0 right-0 top-[calc(100%+10px)] z-[9999] origin-top overflow-hidden rounded-2xl
+              border border-[#E0A526]/25 bg-card/95 shadow-[0_24px_60px_-24px_rgba(74,46,32,0.5)]
+              backdrop-blur-2xl backdrop-saturate-150
+            "
+            role="listbox"
+            aria-label="Sort dishes"
+          >
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-[#E0A526]/70 to-transparent"
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-[#E0A526]/15 blur-3xl"
+            />
+
+            <div className="relative px-3 pt-3 pb-2">
+              <span className="block text-[10px] font-semibold uppercase tracking-[0.25em] text-[#E0A526]">
+                Sort by
+              </span>
+            </div>
+
+            <ul ref={listRef} className="relative max-h-72 overflow-y-auto p-1.5">
+              {SORTS.map((s, i) => {
+                const selected = s.value === value;
+                const active = i === highlighted;
+                return (
+                  <li
+                    key={s.value}
+                    data-sort-index={i}
+                    role="option"
+                    aria-selected={selected}
+                  >
+                    <button
+                      type="button"
+                      onPointerEnter={() => setHighlighted(i)}
+                      onClick={() => commit(s.value)}
+                      className={cn(
+                        "relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors",
+                        "focus-visible:outline-none",
+                        active
+                          ? "bg-[#E0A526]/10 text-foreground"
+                          : "text-muted-foreground hover:bg-[#E0A526]/5 hover:text-foreground",
+                      )}
+                    >
+                      {selected && (
+                        <motion.span
+                          layoutId="sort-selected-bg"
+                          transition={pillTransition}
+                          className="absolute inset-0 -z-0 rounded-xl bg-gradient-to-r from-[#E0A526]/15 to-transparent ring-1 ring-inset ring-[#E0A526]/30"
+                        />
+                      )}
+                      <span className="relative flex min-w-0 flex-1 items-center gap-2.5">
+                        <span
+                          className={cn(
+                            "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors",
+                            selected
+                              ? "border-[#E0A526] bg-gradient-to-br from-[#E0A526] to-[#C78E1E]"
+                              : "border-border",
+                          )}
+                        >
+                          {selected && (
+                            <Check
+                              aria-hidden
+                              className="h-2.5 w-2.5 text-[#3B2416]"
+                              strokeWidth={3.5}
+                            />
+                          )}
+                        </span>
+                        <span className="truncate font-medium">
+                          {s.label}
+                        </span>
+                      </span>
+                      {selected && (
+                        <span className="relative text-[10px] font-semibold uppercase tracking-wider text-[#E0A526]">
+                          Active
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+/* ------------------------------------------------------------------ */
 
 const MenuContent = () => {
   const router = useRouter();
@@ -272,72 +568,154 @@ const MenuContent = () => {
     : { type: "spring" as const, stiffness: 520, damping: 38 };
 
   return (
-    <section className="section relative w-full overflow-hidden">
+    <section className="section relative w-full">
       <div
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-0 h-80 w-[40rem] max-w-full -translate-x-1/2 rounded-full bg-primary/20 blur-3xl"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute bottom-0 left-1/2 h-72 w-[36rem] max-w-full -translate-x-1/2 rounded-full bg-primary/10 blur-3xl"
-      />
+        className="pointer-events-none absolute inset-0 overflow-hidden"
+      >
+        <div className="absolute left-1/2 top-0 h-80 w-[40rem] max-w-full -translate-x-1/2 rounded-full bg-[#E0A526]/20 blur-[100px]" />
+        <div className="absolute bottom-0 left-1/2 h-72 w-[36rem] max-w-full -translate-x-1/2 rounded-full bg-[#C78E1E]/15 blur-[120px]" />
+        <div className="absolute left-1/4 top-1/3 h-64 w-64 rounded-full bg-[#E0A526]/10 blur-[90px]" />
+      </div>
 
       <div className={SHELL_CLASSES}>
-        <header className="mx-auto flex max-w-3xl flex-col items-center text-center">
-          <h1 className="text-balance break-words font-heading text-4xl font-bold leading-[1.1] tracking-tight text-foreground sm:text-5xl md:text-6xl">
-            {keyword ? `Results for “${keyword}”` : "Explore every dish"}
-          </h1>
+        <motion.header
+          variants={headerContainer}
+          initial="hidden"
+          animate="show"
+          className="mx-auto flex max-w-3xl flex-col items-center text-center"
+        >
+          <motion.div
+            variants={headerItem}
+            className="inline-flex items-center gap-2 rounded-full border border-[#E0A526]/30 bg-[#E0A526]/10 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#E0A526]"
+          >
+            <ChefHat className="h-3.5 w-3.5" />
+            Master Table Menu
+          </motion.div>
 
-          <Ornament className="mt-6" />
+          <motion.h1
+            variants={headerItem}
+            className="mt-6 text-balance break-words font-heading text-4xl font-bold leading-[1.1] tracking-tight text-foreground sm:text-5xl md:text-6xl"
+          >
+            {keyword ? (
+              <>
+                Results for{" "}
+                <span className="relative inline-block text-[#E0A526]">
+                  &ldquo;{keyword}&rdquo;
+                  <motion.span
+                    aria-hidden
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={{ duration: 1, ease: EASE, delay: 0.5 }}
+                    style={{ transformOrigin: "left" }}
+                    className="absolute -bottom-1 left-0 h-[3px] w-full rounded-full bg-gradient-to-r from-[#E0A526] to-[#C78E1E]"
+                  />
+                </span>
+              </>
+            ) : (
+              <>
+                Explore every{" "}
+                <span className="relative inline-block text-[#E0A526]">
+                  dish
+                  <motion.span
+                    aria-hidden
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={{ duration: 1, ease: EASE, delay: 0.5 }}
+                    style={{ transformOrigin: "left" }}
+                    className="absolute -bottom-1 left-0 h-[3px] w-full rounded-full bg-gradient-to-r from-[#E0A526] to-[#C78E1E]"
+                  />
+                </span>
+              </>
+            )}
+          </motion.h1>
 
-          <p className="mt-6 max-w-xl text-balance text-base text-muted-foreground sm:text-lg">
+          <motion.div variants={headerItem}>
+            <Ornament className="mt-6" />
+          </motion.div>
+
+          <motion.p
+            variants={headerItem}
+            className="mt-6 max-w-xl text-balance text-base text-muted-foreground sm:text-lg"
+          >
             {keyword
               ? "Narrow it down with the filters below, or clear the search to see everything."
               : "From tandoor classics to modern plates — handpicked, freshly made, and delivered hot."}
-          </p>
+          </motion.p>
 
           {keyword && (
-            <button
+            <motion.button
+              variants={headerItem}
               type="button"
               onClick={clearKeyword}
-              className="mt-6 inline-flex h-10 max-w-full items-center gap-2 rounded-full border border-border bg-card/80 pl-4 pr-3 text-sm font-medium text-foreground shadow-sm transition-colors hover:border-primary/60 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              transition={{ duration: 0.3, ease: EASE }}
+              className="mt-6 inline-flex h-10 max-w-full items-center gap-2 rounded-full border border-[#E0A526]/40 bg-card/80 pl-4 pr-3 text-sm font-medium text-foreground shadow-sm transition-colors hover:border-[#E0A526] hover:bg-[#E0A526]/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <Search aria-hidden className="h-4 w-4 shrink-0 text-primary" />
+              <Search aria-hidden className="h-4 w-4 shrink-0 text-[#E0A526]" />
               <span className="truncate">{keyword}</span>
               <X
                 aria-hidden
                 className="h-4 w-4 shrink-0 text-muted-foreground"
               />
               <span className="sr-only">Clear search</span>
-            </button>
+            </motion.button>
           )}
-        </header>
+        </motion.header>
 
-        <div className="mx-auto mt-10 w-full max-w-5xl rounded-[2rem] border border-border bg-card/70 p-4 shadow-[0_24px_60px_-32px_rgba(74,46,32,0.35)] backdrop-blur-xl sm:mt-12 sm:p-6">
+        <motion.div
+          initial={reduceMotion ? false : { opacity: 0, y: 30, filter: "blur(10px)" }}
+          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+          transition={{ duration: 0.9, ease: EASE, delay: 0.2 }}
+          className="relative z-30 mx-auto mt-10 w-full max-w-5xl overflow-visible rounded-[2rem] border border-border bg-card/70 p-4 shadow-[0_24px_60px_-32px_rgba(74,46,32,0.35)] backdrop-blur-xl sm:mt-12 sm:p-6"
+        >
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#E0A526]/60 to-transparent"
+          />
+          <motion.div
+            aria-hidden
+            animate={{
+              opacity: [0.3, 0.6, 0.3],
+              scale: [1, 1.1, 1],
+            }}
+            transition={{
+              duration: 4,
+              ease: "easeInOut",
+              repeat: Infinity,
+            }}
+            className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-[#E0A526]/15 blur-3xl"
+          />
+
           <div
             role="group"
             aria-label="Category"
-            className="-m-2 overflow-x-auto p-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="relative -m-2 overflow-x-auto p-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             <div className="mx-auto flex w-max gap-2 md:w-auto md:flex-wrap md:justify-center">
               {CATEGORIES.map((c) => {
                 const active = category === c.value;
                 const count = counts[c.value] ?? 0;
                 const empty = !active && count === 0;
+                const Icon = c.Icon;
 
                 return (
-                  <button
+                  <motion.button
                     key={c.value}
                     type="button"
                     disabled={empty}
                     aria-pressed={active}
                     onClick={() => updateFilters({ category: c.value })}
+                    whileHover={!empty && !active ? { y: -2 } : undefined}
+                    whileTap={!empty ? { scale: 0.96 } : undefined}
+                    transition={{ duration: 0.25, ease: EASE }}
                     className={cn(
                       "relative inline-flex h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                       active
                         ? cn("border-transparent font-semibold", ON_GOLD)
-                        : "border-border bg-background/80 text-foreground hover:border-primary/50 hover:bg-background",
+                        : "border-border bg-background/80 text-foreground hover:border-[#E0A526]/50 hover:bg-background",
                       empty &&
                         "cursor-not-allowed opacity-45 hover:border-border hover:bg-background/80",
                     )}
@@ -346,15 +724,16 @@ const MenuContent = () => {
                       <motion.span
                         layoutId="menu-category-pill"
                         transition={pillTransition}
-                        className="absolute -inset-px rounded-full bg-primary shadow-[0_10px_24px_-10px] shadow-primary"
+                        className="absolute -inset-px rounded-full bg-gradient-to-br from-[#E0A526] to-[#C78E1E] shadow-[0_10px_24px_-10px_rgba(224,165,38,0.7)]"
                       />
                     )}
-                    <span
+                    <Icon
                       aria-hidden
-                      className="relative text-base leading-none"
-                    >
-                      {c.emoji}
-                    </span>
+                      className={cn(
+                        "relative h-4 w-4 shrink-0 transition-colors",
+                        active ? "text-[#3B2416]" : "text-[#E0A526]",
+                      )}
+                    />
                     <span className="relative">{c.label}</span>
                     <span
                       className={cn(
@@ -366,13 +745,13 @@ const MenuContent = () => {
                     >
                       {count}
                     </span>
-                  </button>
+                  </motion.button>
                 );
               })}
             </div>
           </div>
 
-          <div className="mt-4 flex flex-col items-center gap-3 border-t border-border/80 pt-4 sm:mt-5 sm:flex-row sm:justify-center sm:gap-4 sm:pt-5">
+          <div className="relative mt-4 flex flex-col items-center gap-3 border-t border-border/80 pt-4 sm:mt-5 sm:flex-row sm:justify-center sm:gap-4 sm:pt-5">
             <div
               role="group"
               aria-label="Diet"
@@ -380,12 +759,15 @@ const MenuContent = () => {
             >
               {DIETS.map((d) => {
                 const active = diet === d.value;
+                const Icon = d.Icon;
                 return (
-                  <button
+                  <motion.button
                     key={d.value}
                     type="button"
                     aria-pressed={active}
                     onClick={() => updateFilters({ diet: d.value })}
+                    whileTap={{ scale: 0.96 }}
+                    transition={{ duration: 0.2, ease: EASE }}
                     className={cn(
                       "relative inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full px-2.5 text-sm font-medium transition-colors sm:flex-none sm:px-4",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -398,51 +780,42 @@ const MenuContent = () => {
                       <motion.span
                         layoutId="menu-diet-pill"
                         transition={pillTransition}
-                        className="absolute inset-0 rounded-full bg-background shadow-sm ring-1 ring-border"
+                        className="absolute inset-0 rounded-full bg-background shadow-sm ring-1 ring-[#E0A526]/30"
                       />
                     )}
-                    {d.dot && (
-                      <span
-                        aria-hidden
-                        className={cn(
-                          "relative hidden h-2 w-2 rounded-full sm:inline-block",
-                          d.dot,
-                        )}
-                      />
-                    )}
+                    <Icon
+                      aria-hidden
+                      className={cn(
+                        "relative hidden h-3.5 w-3.5 sm:inline-block",
+                        d.value === "veg" && "text-emerald-500",
+                        d.value === "vegan" && "text-lime-500",
+                        d.value === "non-veg" && "text-red-500",
+                        d.value === "all" && "text-[#E0A526]",
+                      )}
+                    />
                     <span className="relative">{d.label}</span>
-                  </button>
+                  </motion.button>
                 );
               })}
             </div>
 
-            <label className="relative block w-full sm:w-56">
-              <span className="sr-only">Sort dishes</span>
-              <select
-                value={sort}
-                onChange={(e) =>
-                  updateFilters({ sort: e.target.value as SortValue })
-                }
-                className="h-[46px] w-full appearance-none rounded-full border border-border bg-background/80 pl-5 pr-10 text-sm font-medium text-foreground transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {SORTS.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                aria-hidden
-                className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-              />
-            </label>
+            <SortDropdown
+              value={sort}
+              onChange={(v) => updateFilters({ sort: v })}
+              reduceMotion={reduceMotion}
+            />
           </div>
-        </div>
+        </motion.div>
 
-        <div className="mt-10 flex items-center gap-4 sm:mt-12">
+        <motion.div
+          initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: EASE, delay: 0.4 }}
+          className="relative mt-10 flex items-center gap-4 sm:mt-12"
+        >
           <span
             aria-hidden
-            className="h-px flex-1 bg-gradient-to-r from-transparent to-border"
+            className="h-px flex-1 bg-gradient-to-r from-transparent to-[#E0A526]/40"
           />
           <div className="flex items-center gap-3">
             <p
@@ -450,7 +823,10 @@ const MenuContent = () => {
               className="text-center text-sm text-muted-foreground"
             >
               {loading ? (
-                "Loading dishes…"
+                <span className="inline-flex items-center gap-2">
+                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[#E0A526]" />
+                  Loading dishes…
+                </span>
               ) : error ? (
                 "Menu unavailable"
               ) : visible.length === 0 ? (
@@ -465,24 +841,27 @@ const MenuContent = () => {
               )}
             </p>
             {hasActiveFilters && !loading && (
-              <button
+              <motion.button
                 type="button"
                 onClick={resetAll}
-                className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-card/80 px-3 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                transition={{ duration: 0.25, ease: EASE }}
+                className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-card/80 px-3 text-sm font-medium text-muted-foreground transition-colors hover:border-[#E0A526]/50 hover:text-[#E0A526] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <RotateCcw aria-hidden className="h-3.5 w-3.5" />
                 Reset
-              </button>
+              </motion.button>
             )}
           </div>
           <span
             aria-hidden
-            className="h-px flex-1 bg-gradient-to-l from-transparent to-border"
+            className="h-px flex-1 bg-gradient-to-l from-transparent to-[#E0A526]/40"
           />
-        </div>
+        </motion.div>
 
         {loading && (
-          <div className={cn("mt-8", CARD_LIST_CLASSES)}>
+          <div className={cn("relative mt-8", CARD_LIST_CLASSES)}>
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className={CARD_WIDTH_CLASSES}>
                 <ProductCardSkeleton />
@@ -492,73 +871,127 @@ const MenuContent = () => {
         )}
 
         {!loading && error && (
-          <div className="mx-auto mt-8 flex max-w-xl flex-col items-center rounded-[2rem] border border-border bg-card/70 px-6 py-14 text-center backdrop-blur-xl">
-            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-secondary text-3xl">
-              🍲
-            </span>
-            <h2 className="mt-5 font-heading text-2xl font-semibold text-foreground">
-              Couldn&apos;t load the menu
-            </h2>
-            <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-              Check your connection and try again.
-            </p>
-            <button
-              type="button"
-              onClick={retry}
-              className={cn(
-                "mt-6 inline-flex h-11 items-center rounded-full bg-primary px-6 text-sm font-semibold shadow-sm transition-all hover:scale-[1.03] hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                ON_GOLD,
-              )}
-            >
-              Try again
-            </button>
-          </div>
+          <motion.div
+            initial={reduceMotion ? false : { opacity: 0, y: 20, filter: "blur(8px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            transition={{ duration: 0.7, ease: EASE }}
+            className="relative mx-auto mt-8 flex max-w-xl flex-col items-center overflow-hidden rounded-[2rem] border border-border bg-card/70 px-6 py-14 text-center backdrop-blur-xl"
+          >
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-[#E0A526]/20 blur-3xl"
+            />
+            <div className="relative">
+              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#E0A526]/15 text-[#E0A526] shadow-[0_0_30px_rgba(224,165,38,0.3)]">
+                <Soup className="h-8 w-8" />
+              </span>
+              <h2 className="mt-5 font-heading text-2xl font-semibold text-foreground">
+                Couldn&apos;t load the menu
+              </h2>
+              <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+                Check your connection and try again.
+              </p>
+              <motion.button
+                type="button"
+                onClick={retry}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.3, ease: EASE }}
+                className={cn(
+                  "mt-6 inline-flex h-11 items-center rounded-full bg-gradient-to-br from-[#E0A526] to-[#C78E1E] px-6 text-sm font-semibold shadow-[0_10px_28px_-10px_rgba(224,165,38,0.6)] transition-shadow hover:shadow-[0_14px_32px_-10px_rgba(224,165,38,0.75)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  ON_GOLD,
+                )}
+              >
+                Try again
+              </motion.button>
+            </div>
+          </motion.div>
         )}
 
         {!loading && !error && visible.length === 0 && (
-          <div className="mx-auto mt-8 flex max-w-xl flex-col items-center rounded-[2rem] border border-dashed border-border bg-card/50 px-6 py-14 text-center">
-            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-secondary text-3xl">
-              🍽️
-            </span>
-            <h2 className="mt-5 break-words font-heading text-2xl font-semibold text-foreground">
-              {keyword ? `Nothing found for “${keyword}”` : "Nothing matches"}
-            </h2>
-            <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-              Try a different word, or loosen the filters to see more dishes.
-            </p>
-            <button
-              type="button"
-              onClick={resetAll}
-              className={cn(
-                "mt-6 inline-flex h-11 items-center rounded-full bg-primary px-6 text-sm font-semibold shadow-sm transition-all hover:scale-[1.03] hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                ON_GOLD,
-              )}
-            >
-              {keyword ? "Show full menu" : "Clear filters"}
-            </button>
-          </div>
+          <motion.div
+            initial={reduceMotion ? false : { opacity: 0, y: 20, filter: "blur(8px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            transition={{ duration: 0.7, ease: EASE }}
+            className="relative mx-auto mt-8 flex max-w-xl flex-col items-center overflow-hidden rounded-[2rem] border border-dashed border-border bg-card/50 px-6 py-14 text-center"
+          >
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-[#E0A526]/15 blur-3xl"
+            />
+            <div className="relative">
+              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#E0A526]/15 text-[#E0A526] shadow-[0_0_30px_rgba(224,165,38,0.3)]">
+                <UtensilsCrossed className="h-8 w-8" />
+              </span>
+              <h2 className="mt-5 break-words font-heading text-2xl font-semibold text-foreground">
+                {keyword ? (
+                  <>
+                    Nothing found for{" "}
+                    <span className="text-[#E0A526]">
+                      &ldquo;{keyword}&rdquo;
+                    </span>
+                  </>
+                ) : (
+                  "Nothing matches"
+                )}
+              </h2>
+              <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+                Try a different word, or loosen the filters to see more dishes.
+              </p>
+              <motion.button
+                type="button"
+                onClick={resetAll}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.3, ease: EASE }}
+                className={cn(
+                  "mt-6 inline-flex h-11 items-center rounded-full bg-gradient-to-br from-[#E0A526] to-[#C78E1E] px-6 text-sm font-semibold shadow-[0_10px_28px_-10px_rgba(224,165,38,0.6)] transition-shadow hover:shadow-[0_14px_32px_-10px_rgba(224,165,38,0.75)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  ON_GOLD,
+                )}
+              >
+                {keyword ? "Show full menu" : "Clear filters"}
+              </motion.button>
+            </div>
+          </motion.div>
         )}
 
         {!loading && !error && visible.length > 0 && (
-          <div className={cn("mt-8", CARD_LIST_CLASSES)}>
+          <div className={cn("relative mt-8", CARD_LIST_CLASSES)}>
             <AnimatePresence mode="popLayout">
               {visible.map((dish, index) => (
                 <motion.div
                   key={dish._id}
                   layout={!reduceMotion}
                   initial={
-                    reduceMotion ? false : { opacity: 0, y: 20, scale: 0.98 }
+                    reduceMotion
+                      ? false
+                      : {
+                          opacity: 0,
+                          y: 40,
+                          scale: 0.96,
+                          filter: "blur(8px)",
+                        }
                   }
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  animate={{
+                    opacity: 1,
+                    y: 0,
+                    scale: 1,
+                    filter: "blur(0px)",
+                  }}
                   exit={
                     reduceMotion
                       ? { opacity: 0 }
-                      : { opacity: 0, y: -10, scale: 0.98 }
+                      : {
+                          opacity: 0,
+                          y: -20,
+                          scale: 0.96,
+                          filter: "blur(6px)",
+                        }
                   }
                   transition={{
-                    duration: reduceMotion ? 0 : 0.38,
-                    delay: reduceMotion ? 0 : Math.min(index * 0.03, 0.3),
-                    ease: [0.22, 1, 0.36, 1],
+                    duration: reduceMotion ? 0 : 0.7,
+                    delay: reduceMotion ? 0 : Math.min(index * 0.04, 0.4),
+                    ease: EASE,
                   }}
                   className={CARD_WIDTH_CLASSES}
                 >

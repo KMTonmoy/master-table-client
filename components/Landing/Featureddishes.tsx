@@ -205,7 +205,7 @@ const FeaturedDishes = () => {
           <div
             aria-busy="true"
             aria-live="polite"
-            className="mt-8 grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-4"
+            className="mt-8 grid grid-cols-3 gap-2.5 sm:gap-4 md:grid-cols-3 lg:grid-cols-4"
           >
             {Array.from({ length: PAGE_SIZE }).map((_, i) => (
               <ProductCardSkeleton key={i} />
@@ -233,7 +233,7 @@ const FeaturedDishes = () => {
           <>
             <motion.div
               layout
-              className="mt-8 grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-4"
+              className="mt-8 grid grid-cols-3 gap-2.5 sm:gap-4 md:grid-cols-3 lg:grid-cols-4"
             >
               <AnimatePresence mode="popLayout">
                 {visibleDishes.map((dish, index) => {
