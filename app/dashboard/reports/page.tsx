@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import {
   CalendarClock,
+  ChevronDown,
   Download,
   FileSpreadsheet,
   FileText,
+  Loader2,
   Plus,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 import {
   Badge,
@@ -29,6 +32,8 @@ import type { Report } from "@/types/dashboard.types";
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 ).replace(/\/+$/, "");
+
+type Format = "PDF" | "XLSX" | "CSV";
 
 const TEMPLATES = [
   {
@@ -53,51 +58,226 @@ const TEMPLATES = [
   },
 ];
 
+const FORMATS: Format[] = ["PDF", "XLSX", "CSV"];
+
 const extractError = (err: unknown, fallback: string) => {
   if (axios.isAxiosError(err)) {
-    return err.response?.data?.error || err.message || fallback;
+    return (
+      err.response?.data?.error ||
+      err.response?.data?.message ||
+      err.message ||
+      fallback
+    );
   }
   return err instanceof Error ? err.message : fallback;
+};
+
+const slug = (s: string) =>
+  (s || "report")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+const extFor = (format: string) => {
+  const f = (format || "CSV").toUpperCase();
+  if (f === "XLSX") return "xlsx";
+  if (f === "PDF") return "pdf";
+  return "csv";
+};
+
+const parseFilename = (disposition: string) => {
+  const match = /filename\*?=(?:UTF-8''|")?([^";]+)/i.exec(disposition);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1].replace(/"/g, ""));
+  } catch {
+    return match[1].replace(/"/g, "");
+  }
 };
 
 const Reports = () => {
   const [weekly, setWeekly] = useState(true);
   const [monthly, setMonthly] = useState(true);
   const [daily, setDaily] = useState(false);
+  const [defaultFormat, setDefaultFormat] = useState<Format>("PDF");
+
   const [generating, setGenerating] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [clearingAll, setClearingAll] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const { data } = await axios.get<Report[]>(`${API_URL}/api/reports`);
-      setReports(Array.isArray(data) ? data : []);
-      setError(null);
-    } catch (err) {
-      setError(extractError(err, "Failed to load reports"));
-      setReports([]);
-    } finally {
-      setLoading(false);
-    }
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const { data } = await axios.get<Report[]>(`${API_URL}/api/reports`, {
+          withCredentials: true,
+        });
+        if (cancelled) return;
+        setReports(Array.isArray(data) ? data : []);
+        setError(null);
+      } catch (err) {
+        if (cancelled) return;
+        setError(extractError(err, "Failed to load reports"));
+        setReports([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (!openMenuId) return;
+    const onDown = (e: PointerEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuId(null);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpenMenuId(null);
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [openMenuId]);
 
-  const generate = async (name: string) => {
-    if (generating) return;
-    setGenerating(name);
+  const reload = async () => {
     try {
-      await axios.post(`${API_URL}/api/reports/generate`, { name });
-      await load();
+      const { data } = await axios.get<Report[]>(`${API_URL}/api/reports`, {
+        withCredentials: true,
+      });
+      setReports(Array.isArray(data) ? data : []);
+      setError(null);
+    } catch (err) {
+      setError(extractError(err, "Failed to refresh reports"));
+    }
+  };
+
+  const generate = async (name: string, format: Format = defaultFormat) => {
+    if (generating) return;
+    setGenerating(`${name}:${format}`);
+    setError(null);
+    try {
+      await axios.post(
+        `${API_URL}/api/reports/generate`,
+        { name, format },
+        { withCredentials: true },
+      );
+      await reload();
     } catch (err) {
       setError(extractError(err, "Failed to generate report"));
     } finally {
       setGenerating(null);
     }
   };
+
+  const download = async (report: Report) => {
+    if (downloading) return;
+    setDownloading(report.id);
+    setError(null);
+
+    try {
+      const response = await axios.get(
+        `${API_URL}/api/reports/${encodeURIComponent(report.id)}/download`,
+        { withCredentials: true, responseType: "blob" },
+      );
+
+      const contentType = String(
+        response.headers["content-type"] || "application/octet-stream",
+      );
+      const blob = new Blob([response.data], { type: contentType });
+
+      const disposition = String(response.headers["content-disposition"] || "");
+      const filename =
+        parseFilename(disposition) ||
+        `${slug(report.name)}-${today()}.${extFor(report.format)}`;
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(extractError(err, "Failed to download report"));
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const removeOne = async (report: Report) => {
+    if (deleting) return;
+    if (!window.confirm(`Delete "${report.name}"? This cannot be undone.`)) {
+      return;
+    }
+    setDeleting(report.id);
+    setError(null);
+
+    const snapshot = reports;
+    setReports((prev) => prev.filter((r) => r.id !== report.id));
+
+    try {
+      await axios.delete(
+        `${API_URL}/api/reports/${encodeURIComponent(report.id)}`,
+        { withCredentials: true },
+      );
+    } catch (err) {
+      setReports(snapshot);
+      setError(extractError(err, "Failed to delete report"));
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const clearAll = async () => {
+    if (clearingAll) return;
+    if (reports.length === 0) return;
+    if (
+      !window.confirm(
+        `Delete all ${reports.length} reports? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setClearingAll(true);
+    setError(null);
+
+    const snapshot = reports;
+    setReports([]);
+
+    try {
+      await axios.delete(`${API_URL}/api/reports`, {
+        withCredentials: true,
+      });
+    } catch (err) {
+      setReports(snapshot);
+      setError(extractError(err, "Failed to clear reports"));
+    } finally {
+      setClearingAll(false);
+    }
+  };
+
+  const isGenerating = (name: string) =>
+    generating !== null && generating.startsWith(`${name}:`);
 
   return (
     <>
@@ -111,7 +291,11 @@ const Reports = () => {
             onClick={() => generate("Custom report")}
             disabled={generating !== null}
           >
-            {generating === "Custom report" ? "Generating…" : "Custom report"}
+            {generating === "Custom report:PDF" ||
+            generating === "Custom report:XLSX" ||
+            generating === "Custom report:CSV"
+              ? "Generating…"
+              : "Custom report"}
           </Button>
         }
       />
@@ -125,7 +309,7 @@ const Reports = () => {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {TEMPLATES.map((t) => {
           const Icon = t.icon;
-          const busy = generating === t.name;
+          const busy = isGenerating(t.name);
           return (
             <Card key={t.name} className="flex flex-col p-5 sm:p-6">
               <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/15 text-primary ring-1 ring-inset ring-primary/30">
@@ -137,15 +321,23 @@ const Reports = () => {
               <p className="mt-1 flex-1 text-sm text-muted-foreground">
                 {t.desc}
               </p>
-              <Button
-                className="mt-5"
-                size="sm"
-                icon={RefreshCw}
-                onClick={() => generate(t.name)}
-                disabled={busy || (generating !== null && !busy)}
-              >
-                {busy ? "Generating…" : "Generate now"}
-              </Button>
+
+              <div className="mt-5 space-y-3">
+                <FormatPicker
+                  value={defaultFormat}
+                  disabled={generating !== null}
+                  onChange={setDefaultFormat}
+                />
+                <Button
+                  className="w-full"
+                  size="sm"
+                  icon={busy ? Loader2 : RefreshCw}
+                  onClick={() => generate(t.name, defaultFormat)}
+                  disabled={busy || (generating !== null && !busy)}
+                >
+                  {busy ? "Generating…" : `Generate ${defaultFormat}`}
+                </Button>
+              </div>
             </Card>
           );
         })}
@@ -153,10 +345,25 @@ const Reports = () => {
 
       <div className="grid items-start gap-6 xl:grid-cols-12">
         <Card className="xl:col-span-8">
-          <CardHeader
-            title="Recent reports"
-            subtitle="Download anything you generated in the last 30 days"
-          />
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <CardHeader
+              title="Recent reports"
+              subtitle="Download or clean up anything you generated"
+            />
+            {reports.length > 0 && (
+              <Button
+                variant="danger"
+                size="sm"
+                icon={clearingAll ? Loader2 : Trash2}
+                className="mt-4 mr-4 sm:mt-5 sm:mr-5"
+                onClick={clearAll}
+                disabled={clearingAll}
+              >
+                {clearingAll ? "Clearing…" : "Clear all"}
+              </Button>
+            )}
+          </div>
+
           <div className="mt-4">
             {loading ? (
               <div className="space-y-2 p-5">
@@ -181,38 +388,59 @@ const Reports = () => {
                     <Th>Format</Th>
                     <Th>Size</Th>
                     <Th>Updated</Th>
-                    <Th className="w-28" />
+                    <Th className="w-48" />
                   </tr>
                 </thead>
                 <tbody>
-                  {reports.map((r) => (
-                    <tr
-                      key={r.id}
-                      className="transition-colors hover:bg-foreground/[0.03]"
-                    >
-                      <Td>
-                        <p className="font-medium">{r.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {r.desc}
-                        </p>
-                      </Td>
-                      <Td className="text-muted-foreground">{r.range}</Td>
-                      <Td>
-                        <Badge tone="gold" dot={false}>
-                          {r.format}
-                        </Badge>
-                      </Td>
-                      <Td className="tabular-nums text-muted-foreground">
-                        {r.size}
-                      </Td>
-                      <Td className="text-muted-foreground">{r.updated}</Td>
-                      <Td>
-                        <Button size="sm" icon={Download}>
-                          Download
-                        </Button>
-                      </Td>
-                    </tr>
-                  ))}
+                  {reports.map((r) => {
+                    const busy = downloading === r.id;
+                    const removing = deleting === r.id;
+                    return (
+                      <tr
+                        key={r.id}
+                        className="transition-colors hover:bg-foreground/[0.03]"
+                      >
+                        <Td>
+                          <p className="font-medium">{r.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {r.desc}
+                          </p>
+                        </Td>
+                        <Td className="text-muted-foreground">{r.range}</Td>
+                        <Td>
+                          <Badge tone="gold" dot={false}>
+                            {r.format}
+                          </Badge>
+                        </Td>
+                        <Td className="tabular-nums text-muted-foreground">
+                          {r.size}
+                        </Td>
+                        <Td className="text-muted-foreground">{r.updated}</Td>
+                        <Td>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              size="sm"
+                              icon={busy ? Loader2 : Download}
+                              onClick={() => download(r)}
+                              disabled={downloading !== null || removing}
+                            >
+                              {busy ? "Downloading…" : "Download"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              icon={removing ? Loader2 : Trash2}
+                              onClick={() => removeOne(r)}
+                              disabled={removing || downloading !== null}
+                              aria-label={`Delete ${r.name}`}
+                            >
+                              {removing ? "" : ""}
+                            </Button>
+                          </div>
+                        </Td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </Table>
             )}
@@ -258,20 +486,19 @@ const Reports = () => {
                     <p className="text-xs text-muted-foreground">{s.hint}</p>
                   </div>
                 </div>
-                <Toggle
-                  checked={s.v}
-                  onChange={s.set}
-                  label={s.label}
-                />
+                <Toggle checked={s.v} onChange={s.set} label={s.label} />
               </div>
             ))}
 
             <div className="border-t border-border/60 pt-5">
               <Field label="Default file format">
-                <Select defaultValue="PDF">
-                  <option>PDF</option>
-                  <option>XLSX</option>
-                  <option>CSV</option>
+                <Select
+                  value={defaultFormat}
+                  onChange={(e) => setDefaultFormat(e.target.value as Format)}
+                >
+                  <option value="PDF">PDF</option>
+                  <option value="XLSX">XLSX</option>
+                  <option value="CSV">CSV</option>
                 </Select>
               </Field>
             </div>
@@ -279,6 +506,58 @@ const Reports = () => {
         </Card>
       </div>
     </>
+  );
+};
+
+const FormatPicker = ({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: Format;
+  onChange: (v: Format) => void;
+  disabled?: boolean;
+}) => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => !disabled && setOpen((v) => !v)}
+        disabled={disabled}
+        className="inline-flex h-9 w-full items-center justify-between rounded-2xl border border-border bg-background px-3 text-sm font-medium text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <span>{value}</span>
+        <ChevronDown
+          className={`h-4 w-4 text-muted-foreground transition-transform ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 overflow-hidden rounded-2xl border border-border bg-background shadow-lg">
+          {FORMATS.map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => {
+                onChange(f);
+                setOpen(false);
+              }}
+              className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-secondary ${
+                f === value ? "text-primary" : "text-foreground"
+              }`}
+            >
+              {f}
+              {f === value && (
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 
