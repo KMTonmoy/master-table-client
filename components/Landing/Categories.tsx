@@ -59,20 +59,37 @@ const CATEGORIES: Category[] = [
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
-const container: Variants = {
-  hidden: {},
+const headerContainer: Variants = {
+  hidden: { opacity: 0 },
   show: {
-    transition: { staggerChildren: 0.08, delayChildren: 0.1 },
+    opacity: 1,
+    transition: { staggerChildren: 0.1, delayChildren: 0.05 },
+  },
+};
+
+const headerItem: Variants = {
+  hidden: { opacity: 0, y: 30, filter: "blur(8px)" },
+  show: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: { duration: 0.9, ease: EASE },
   },
 };
 
 const cardVariant: Variants = {
-  hidden: { opacity: 0, y: 24, scale: 0.97 },
+  hidden: {
+    opacity: 0,
+    y: 60,
+    scale: 0.92,
+    filter: "blur(10px)",
+  },
   show: {
     opacity: 1,
     y: 0,
     scale: 1,
-    transition: { duration: 0.6, ease: EASE },
+    filter: "blur(0px)",
+    transition: { duration: 0.85, ease: EASE },
   },
 };
 
@@ -88,64 +105,100 @@ const Categories = () => {
 
   return (
     <section className="section relative overflow-hidden">
+      {/* Ambient glow */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -top-24 left-1/4 h-72 w-72 rounded-full bg-sky-100/60 blur-3xl dark:bg-white/10"
+        className="pointer-events-none absolute -top-32 left-1/4 h-80 w-80 rounded-full bg-[#E0A526]/15 blur-[100px]"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute bottom-0 right-1/4 h-80 w-80 rounded-full bg-primary/15 blur-3xl"
+        className="pointer-events-none absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-[#C78E1E]/15 blur-[120px]"
       />
 
       <div className="content-wrap relative px-5">
+        {/* HEADER */}
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.5 }}
-          transition={{ duration: 0.5, ease: EASE }}
-          className="flex items-end justify-between gap-4"
-        >
-          <h2>Find what you&apos;re craving</h2>
-          <Link
-            href="/menu"
-            className="group hidden shrink-0 items-center gap-1 text-sm font-medium text-primary sm:inline-flex"
-          >
-            <span className="relative">
-              View full menu
-              <span className="absolute -bottom-0.5 left-0 h-px w-full origin-left scale-x-0 bg-primary transition-transform duration-300 group-hover:scale-x-100" />
-            </span>
-            <span className="transition-transform duration-300 group-hover:translate-x-1">
-              →
-            </span>
-          </Link>
-        </motion.div>
-
-        <motion.div
-          variants={container}
+          variants={headerContainer}
           initial="hidden"
           whileInView="show"
-          viewport={{ once: true, amount: 0.15 }}
-          className="
-            mt-8 grid gap-4
-            grid-cols-2
-            sm:grid-cols-2
-            md:grid-cols-3
-            lg:grid-cols-5
-          "
+          viewport={{ once: false, amount: 0.3 }}
+          className="flex items-end justify-between gap-4"
         >
+          <div>
+            <motion.div
+              variants={headerItem}
+              className="mb-3 flex items-center gap-3"
+            >
+              <span className="h-px w-10 bg-[#E0A526]" />
+              <span className="font-sans text-[11px] font-semibold uppercase tracking-[0.3em] text-[#E0A526] sm:text-xs">
+                Explore Our Menu
+              </span>
+            </motion.div>
+
+            <motion.h2
+              variants={headerItem}
+              className="font-heading text-3xl text-foreground sm:text-4xl lg:text-5xl"
+            >
+              Find what you&apos;re{" "}
+              <span className="relative inline-block text-[#E0A526]">
+                craving
+                <motion.span
+                  variants={{
+                    hidden: { scaleX: 0 },
+                    show: {
+                      scaleX: 1,
+                      transition: { duration: 1, ease: EASE, delay: 0.5 },
+                    },
+                  }}
+                  style={{ transformOrigin: "left" }}
+                  className="absolute -bottom-1 left-0 h-[3px] w-full rounded-full bg-gradient-to-r from-[#E0A526] to-[#C78E1E]"
+                />
+              </span>
+            </motion.h2>
+
+            <motion.p
+              variants={headerItem}
+              className="mt-3 max-w-md text-sm text-muted-foreground sm:text-base"
+            >
+              Handpicked categories, crafted with authentic spices and slow-cooked tradition.
+            </motion.p>
+          </div>
+
+          <motion.div variants={headerItem}>
+            <Link
+              href="/menu"
+              className="group hidden shrink-0 items-center gap-1 text-sm font-medium text-primary sm:inline-flex"
+            >
+              <span className="relative">
+                View full menu
+                <span className="absolute -bottom-0.5 left-0 h-px w-full origin-left scale-x-0 bg-primary transition-transform duration-500 group-hover:scale-x-100" />
+              </span>
+              <span className="transition-transform duration-500 group-hover:translate-x-1">
+                →
+              </span>
+            </Link>
+          </motion.div>
+        </motion.div>
+
+        {/* GRID — each card uses whileInView so it re-triggers on scroll up */}
+        <div className="mt-10 grid gap-5 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
           {CATEGORIES.map((category, i) => (
             <motion.div
               key={category.name}
               variants={cardVariant}
-              whileHover={{ y: -6 }}
-              whileTap={{ scale: 0.98 }}
-              transition={{ duration: 0.3, ease: EASE }}
+              initial="hidden"
+              whileInView="show"
+              viewport={{ once: false, amount: 0.2 }}
+              transition={{ delay: i * 0.08 }}
+              whileHover={{ y: -8, transition: { duration: 0.35, ease: EASE } }}
+              whileTap={{ scale: 0.97 }}
               className="w-full"
             >
               <Link href={category.href} className="group block h-full">
                 <div
                   className="
-                    relative h-full overflow-hidden rounded-3xl border border-white/70 bg-white/15 p-2
+                    relative h-full overflow-hidden rounded-3xl
+                    border border-white/70 bg-white/15 p-2
                     shadow-[0_10px_45px_-14px_rgba(30,64,110,0.25)]
                     backdrop-blur-3xl backdrop-saturate-150
                     transition-all duration-500
@@ -154,6 +207,7 @@ const Categories = () => {
                     dark:border-white/10 dark:bg-white/5 dark:group-hover:bg-white/10
                   "
                 >
+                  {/* Reflective highlights */}
                   <div
                     aria-hidden
                     className="pointer-events-none absolute -left-10 -top-8 h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(236,244,255,0.9),transparent_70%)] blur-2xl transition-transform duration-[1400ms] ease-out group-hover:translate-x-3 group-hover:translate-y-2 dark:bg-[radial-gradient(circle,rgba(255,255,255,0.18),transparent_70%)]"
@@ -161,10 +215,6 @@ const Categories = () => {
                   <div
                     aria-hidden
                     className="pointer-events-none absolute -bottom-12 -right-8 h-36 w-36 rounded-full bg-[radial-gradient(circle,rgba(220,235,255,0.75),transparent_70%)] blur-2xl transition-transform duration-[1600ms] ease-out group-hover:-translate-x-2 group-hover:-translate-y-3 dark:bg-[radial-gradient(circle,rgba(255,255,255,0.14),transparent_70%)]"
-                  />
-                  <div
-                    aria-hidden
-                    className="pointer-events-none absolute left-1/3 top-1/2 h-24 w-24 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.55),transparent_70%)] opacity-0 blur-2xl transition-opacity duration-700 group-hover:opacity-100 dark:bg-[radial-gradient(circle,rgba(255,255,255,0.1),transparent_70%)]"
                   />
                   <div
                     aria-hidden
@@ -180,20 +230,26 @@ const Categories = () => {
                   />
                   <div
                     aria-hidden
-                    className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-0 blur-3xl transition-opacity duration-500 group-hover:opacity-25"
+                    className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-0 blur-3xl transition-opacity duration-700 group-hover:opacity-40"
                     style={{ backgroundColor: category.accent }}
                   />
 
+                  {/* Image */}
                   <div className="relative aspect-[4/5] overflow-hidden rounded-2xl">
                     <Image
                       src={category.image}
                       alt={category.name}
                       fill
                       sizes="(min-width: 1024px) 20vw, (min-width: 640px) 33vw, 50vw"
-                      className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.08]"
+                      className="object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-[1.12]"
                     />
 
-                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent opacity-80 transition-opacity duration-500 group-hover:opacity-95" />
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-85 transition-opacity duration-500 group-hover:opacity-95" />
+
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-1000 ease-out group-hover:translate-x-full"
+                    />
 
                     <span className="absolute right-2 top-2 rounded-full border border-white/60 bg-white/20 px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm backdrop-blur-md backdrop-saturate-150 sm:text-[11px]">
                       {category.dishCount} dishes
@@ -209,6 +265,7 @@ const Categories = () => {
                     </div>
                   </div>
 
+                  {/* Footer meta */}
                   <div className="relative flex items-center justify-between px-2 pb-1 pt-3">
                     <div>
                       <p className="font-heading text-sm font-semibold text-foreground sm:text-base">
@@ -219,7 +276,7 @@ const Categories = () => {
                       </p>
                     </div>
                     <span
-                      className="hidden text-[11px] font-medium lg:block"
+                      className="hidden font-heading text-[11px] font-medium lg:block"
                       style={{ color: category.accent }}
                     >
                       0{i + 1}
@@ -229,21 +286,27 @@ const Categories = () => {
               </Link>
             </motion.div>
           ))}
-        </motion.div>
+        </div>
 
+        {/* MOBILE CTA */}
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
+          initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.5 }}
-          transition={{ duration: 0.5, ease: EASE, delay: 0.3 }}
-          className="mt-6 flex justify-center sm:hidden"
+          viewport={{ amount: 0.5, once: false }}
+          transition={{ duration: 0.7, ease: EASE }}
+          className="mt-8 flex justify-center sm:hidden"
         >
           <Link
             href="/menu"
-            className="inline-flex h-11 items-center gap-2 rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-[0_10px_28px_-10px_rgba(224,165,38,0.55)] transition-all duration-300 hover:scale-[1.03] hover:bg-primary/90"
+            className="group relative inline-flex h-12 items-center gap-2 overflow-hidden rounded-full bg-primary px-7 text-sm font-semibold text-primary-foreground shadow-[0_10px_28px_-10px_rgba(224,165,38,0.55)] transition-all duration-500 hover:scale-[1.03]"
           >
-            View full menu
-            <span>→</span>
+            <span className="absolute inset-0 -translate-y-full bg-gradient-to-b from-[#C78E1E] to-[#E0A526] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-y-0" />
+            <span className="relative z-10 flex items-center gap-2">
+              View full menu
+              <span className="transition-transform duration-500 group-hover:translate-x-1">
+                →
+              </span>
+            </span>
           </Link>
         </motion.div>
       </div>

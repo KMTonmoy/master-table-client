@@ -3,16 +3,51 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import axios from "axios";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type Variants } from "framer-motion";
 import { ChevronDown, ChevronUp, UtensilsCrossed } from "lucide-react";
 import ProductCard, { type Dish } from "../Common/Productcard";
 import ProductCardSkeleton from "../Skeleton/ProductCardSkeleton";
 
 const PAGE_SIZE = 8;
 
-// Bug fix: this was hardcoded to localhost, which breaks in staging/production.
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+const EASE = [0.22, 1, 0.36, 1] as const;
+
+const headerContainer: Variants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1, delayChildren: 0.05 },
+  },
+};
+
+const headerItem: Variants = {
+  hidden: { opacity: 0, y: 30, filter: "blur(8px)" },
+  show: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: { duration: 0.9, ease: EASE },
+  },
+};
+
+const cardReveal: Variants = {
+  hidden: {
+    opacity: 0,
+    y: 60,
+    scale: 0.92,
+    filter: "blur(10px)",
+  },
+  show: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    filter: "blur(0px)",
+    transition: { duration: 0.85, ease: EASE },
+  },
+};
 
 const shuffle = <T,>(arr: T[]): T[] => {
   const a = [...arr];
@@ -29,17 +64,7 @@ const FeaturedDishes = () => {
   const [error, setError] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  // Bug fix: `firstNewIndex` used to be read from a ref's `.current` during
-  // render, which throws "Cannot access refs during render". Refs must only
-  // be read in effects/handlers, so this is plain state instead.
   const [baseIndex, setBaseIndex] = useState(PAGE_SIZE);
-  // Bug fix: calling setBaseIndex from inside a useEffect keyed on
-  // visibleCount triggered "Avoid calling setState() directly within an
-  // effect" — an extra, avoidable render pass. Instead we track the last
-  // visibleCount we've "committed" and adjust baseIndex during render
-  // itself (React's documented pattern for deriving state from a prop/state
-  // change: https://react.dev/learn/you-might-not-need-an-effect). This
-  // still runs before paint and gives the exact same timing as before.
   const [committedVisibleCount, setCommittedVisibleCount] = useState(PAGE_SIZE);
 
   if (visibleCount !== committedVisibleCount) {
@@ -110,36 +135,71 @@ const FeaturedDishes = () => {
     <section className="section relative overflow-hidden">
       <div
         aria-hidden
-        className="pointer-events-none absolute -top-20 left-1/3 h-72 w-72 rounded-full bg-sky-100/50 blur-3xl dark:bg-white/10"
+        className="pointer-events-none absolute -top-20 left-1/3 h-72 w-72 rounded-full bg-[#E0A526]/15 blur-[100px]"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute bottom-0 right-1/4 h-80 w-80 rounded-full bg-primary/15 blur-3xl"
+        className="pointer-events-none absolute bottom-0 right-1/4 h-80 w-80 rounded-full bg-[#C78E1E]/15 blur-[120px]"
       />
 
       <div className="content-wrap relative px-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <motion.div
+          variants={headerContainer}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: false, amount: 0.3 }}
+          className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+        >
           <div className="flex items-start gap-3">
-            <span
+            <motion.span
+              variants={headerItem}
               aria-hidden
               className="mt-1 hidden rounded-full border border-primary/30 bg-primary/10 p-2 text-primary sm:inline-flex"
             >
               <UtensilsCrossed className="h-5 w-5" />
-            </span>
+            </motion.span>
             <div>
-              <h2>Today&apos;s favorites</h2>
-              <p className="mt-1 max-w-md text-sm text-muted-foreground">
+              <motion.h2 variants={headerItem}>
+                Today&apos;s{" "}
+                <span className="relative inline-block text-primary">
+                  favorites
+                  <motion.span
+                    variants={{
+                      hidden: { scaleX: 0 },
+                      show: {
+                        scaleX: 1,
+                        transition: { duration: 1, ease: EASE, delay: 0.5 },
+                      },
+                    }}
+                    style={{ transformOrigin: "left" }}
+                    className="absolute -bottom-1 left-0 h-[3px] w-full rounded-full bg-gradient-to-r from-[#E0A526] to-[#C78E1E]"
+                  />
+                </span>
+              </motion.h2>
+              <motion.p
+                variants={headerItem}
+                className="mt-2 max-w-md text-sm text-muted-foreground"
+              >
                 The dishes our regulars keep coming back for.
-              </p>
+              </motion.p>
             </div>
           </div>
-          <Link
-            href="/menu"
-            className="shrink-0 text-sm font-medium text-primary hover:underline"
-          >
-            View full menu
-          </Link>
-        </div>
+
+          <motion.div variants={headerItem}>
+            <Link
+              href="/menu"
+              className="group inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary"
+            >
+              <span className="relative">
+                View full menu
+                <span className="absolute -bottom-0.5 left-0 h-px w-full origin-left scale-x-0 bg-primary transition-transform duration-500 group-hover:scale-x-100" />
+              </span>
+              <span className="transition-transform duration-500 group-hover:translate-x-1">
+                →
+              </span>
+            </Link>
+          </motion.div>
+        </motion.div>
 
         {loading && (
           <div
@@ -183,19 +243,13 @@ const FeaturedDishes = () => {
                       key={dish._id}
                       ref={index === firstNewIndex ? firstNewCardRef : undefined}
                       layout
-                      initial={
-                        isNewlyRevealed
-                          ? { opacity: 0, y: 40, scale: 0.96 }
-                          : false
-                      }
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      variants={cardReveal}
+                      initial="hidden"
+                      whileInView="show"
+                      viewport={{ once: false, amount: 0.2 }}
                       exit={{ opacity: 0, y: -20, scale: 0.96 }}
                       transition={{
-                        duration: 0.5,
-                        delay: isNewlyRevealed
-                          ? (index - firstNewIndex) * 0.06
-                          : 0,
-                        ease: [0.22, 1, 0.36, 1],
+                        delay: isNewlyRevealed ? (index - firstNewIndex) * 0.06 : 0,
                       }}
                     >
                       <ProductCard dish={dish} />
