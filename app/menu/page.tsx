@@ -1,18 +1,7 @@
 "use client";
 
-import {
-  Suspense,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import {
-  useParams,
-  usePathname,
-  useRouter,
-  useSearchParams,
-} from "next/navigation";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import axios from "axios";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
@@ -38,6 +27,7 @@ import {
   Soup,
   ChefHat,
   ArrowUpDown,
+  Sparkle,
 } from "lucide-react";
 import ProductCard, {
   type Dish,
@@ -96,6 +86,13 @@ type DishExtras = {
 };
 type MenuDish = Dish & DishExtras;
 
+type SearchState = {
+  key: string;
+  results: MenuDish[];
+  error: boolean;
+  fuzzy: boolean;
+};
+
 const CATEGORY_VALUES: string[] = CATEGORIES.map((c) => c.value);
 const DIET_VALUES: string[] = DIETS.map((d) => d.value);
 const SORT_VALUES: string[] = SORTS.map((s) => s.value);
@@ -118,35 +115,14 @@ function parseSort(value: string | null): SortValue {
     : "recommended";
 }
 
-function safeDecode(value: string) {
-  try {
-    return decodeURIComponent(value).trim();
-  } catch {
-    return value.trim();
-  }
-}
-
-function buildHaystack(dish: MenuDish) {
-  return [
-    dish.name,
-    dish.description,
-    dish.cuisine,
-    dish.category,
-    dish.diet,
-    ...(dish.tags ?? []),
-    ...(dish.ingredients ?? []),
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-}
-
 function buildQuery(filters: {
+  q?: string;
   category: CategoryValue;
   diet: DietValue;
   sort: SortValue;
 }) {
   const sp = new URLSearchParams();
+  if (filters.q) sp.set("q", filters.q);
   if (filters.category !== "all") sp.set("category", filters.category);
   if (filters.diet !== "all") sp.set("diet", filters.diet);
   if (filters.sort !== "recommended") sp.set("sort", filters.sort);
@@ -365,7 +341,10 @@ const SortDropdown = ({ value, onChange, reduceMotion }: SortDropdownProps) => {
               </span>
             </div>
 
-            <ul ref={listRef} className="relative max-h-72 overflow-y-auto p-1.5">
+            <ul
+              ref={listRef}
+              className="relative max-h-72 overflow-y-auto p-1.5"
+            >
               {SORTS.map((s, i) => {
                 const selected = s.value === value;
                 const active = i === highlighted;
@@ -412,9 +391,7 @@ const SortDropdown = ({ value, onChange, reduceMotion }: SortDropdownProps) => {
                             />
                           )}
                         </span>
-                        <span className="truncate font-medium">
-                          {s.label}
-                        </span>
+                        <span className="truncate font-medium">{s.label}</span>
                       </span>
                       {selected && (
                         <span className="relative text-[10px] font-semibold uppercase tracking-wider text-[#E0A526]">
@@ -439,7 +416,6 @@ const MenuContent = () => {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const routeParams = useParams<{ keyword?: string | string[] }>();
   const reduceMotion = useReducedMotion();
 
   const [dishes, setDishes] = useState<MenuDish[]>([]);
@@ -447,15 +423,17 @@ const MenuContent = () => {
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
-  const rawKeyword = Array.isArray(routeParams.keyword)
-    ? routeParams.keyword[0]
-    : routeParams.keyword;
-  const keyword = rawKeyword ? safeDecode(rawKeyword) : "";
+  const [searchState, setSearchState] = useState<SearchState | null>(null);
+
+  // Keyword now comes from the query string: /menu?q=pizza
+  const keyword = (searchParams.get("q") ?? "").trim();
+  const hasKeyword = keyword.length > 0;
 
   const category = parseCategory(searchParams.get("category"));
   const diet = parseDiet(searchParams.get("diet"));
   const sort = parseSort(searchParams.get("sort"));
 
+  // Load full menu (used when there's no keyword)
   useEffect(() => {
     let cancelled = false;
 
@@ -477,27 +455,68 @@ const MenuContent = () => {
     };
   }, [attempt]);
 
-  const indexed = useMemo(
-    () => dishes.map((dish) => ({ dish, text: buildHaystack(dish) })),
-    [dishes],
+  // Server-side fuzzy search. Results are stored with the keyword they
+  // belong to, so stale results from a previous search are never shown.
+  useEffect(() => {
+    if (!keyword) return;
+    let cancelled = false;
+
+    axios
+      .get<{
+        query: string;
+        count: number;
+        fuzzy?: boolean;
+        results: MenuDish[];
+      }>(`${API_URL}/api/products/keyword`, {
+        params: { q: keyword, limit: 60 },
+      })
+      .then(({ data }) => {
+        if (cancelled) return;
+        setSearchState({
+          key: keyword,
+          results: Array.isArray(data?.results) ? data.results : [],
+          error: false,
+          fuzzy: Boolean(data?.fuzzy),
+        });
+      })
+      .catch((err) => {
+        console.error("[MenuPage] Search failed:", err);
+        if (cancelled) return;
+        setSearchState({
+          key: keyword,
+          results: [],
+          error: true,
+          fuzzy: false,
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [keyword, attempt]);
+
+  // Only trust results that belong to the CURRENT keyword
+  const activeSearch =
+    hasKeyword && searchState?.key === keyword ? searchState : null;
+  const effectiveSearchResults = activeSearch?.results ?? null;
+  const effectiveSearchLoading = hasKeyword && !activeSearch;
+  const effectiveSearchError = Boolean(activeSearch?.error);
+  const effectiveDidYouMean = activeSearch?.fuzzy ? keyword : null;
+
+  // No keyword: filter the full menu by diet only
+  const localMatched = useMemo(
+    () => dishes.filter((dish) => diet === "all" || dish.diet === diet),
+    [dishes, diet],
   );
 
-  const tokens = useMemo(
-    () => keyword.toLowerCase().split(/\s+/).filter(Boolean),
-    [keyword],
-  );
-
-  const matched = useMemo(
-    () =>
-      indexed
-        .filter(
-          ({ dish, text }) =>
-            tokens.every((t) => text.includes(t)) &&
-            (diet === "all" || dish.diet === diet),
-        )
-        .map(({ dish }) => dish),
-    [indexed, tokens, diet],
-  );
+  // Use server results when searching; otherwise use the full menu
+  const matched = useMemo(() => {
+    if (!hasKeyword) return localMatched;
+    if (!effectiveSearchResults) return [];
+    return diet === "all"
+      ? effectiveSearchResults
+      : effectiveSearchResults.filter((d) => d.diet === diet);
+  }, [hasKeyword, effectiveSearchResults, localMatched, diet]);
 
   const counts = useMemo(() => {
     const map: Record<string, number> = { all: matched.length };
@@ -519,7 +538,7 @@ const MenuContent = () => {
         list.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
         break;
       case "price-desc":
-        list.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
+        list.sort((b, a) => (a.price ?? 0) - (b.price ?? 0));
         break;
       case "popular":
         list.sort((a, b) => (b.sold ?? 0) - (a.sold ?? 0));
@@ -532,11 +551,12 @@ const MenuContent = () => {
   }, [matched, category, sort]);
 
   const hasActiveFilters =
-    keyword !== "" ||
+    hasKeyword ||
     category !== "all" ||
     diet !== "all" ||
     sort !== "recommended";
 
+  // Preserves the keyword when filters change
   const updateFilters = (
     next: Partial<{
       category: CategoryValue;
@@ -544,7 +564,7 @@ const MenuContent = () => {
       sort: SortValue;
     }>,
   ) => {
-    const qs = buildQuery({ category, diet, sort, ...next });
+    const qs = buildQuery({ q: keyword, category, diet, sort, ...next });
     window.history.replaceState(null, "", qs ? `${pathname}?${qs}` : pathname);
   };
 
@@ -559,6 +579,7 @@ const MenuContent = () => {
 
   const retry = () => {
     setError(false);
+    setSearchState(null);
     setLoading(true);
     setAttempt((n) => n + 1);
   };
@@ -566,6 +587,10 @@ const MenuContent = () => {
   const pillTransition = reduceMotion
     ? { duration: 0 }
     : { type: "spring" as const, stiffness: 520, damping: 38 };
+
+  // A search no longer waits on the full menu request
+  const isLoading = hasKeyword ? effectiveSearchLoading : loading;
+  const isError = hasKeyword ? effectiveSearchError : error;
 
   return (
     <section className="section relative w-full">
@@ -597,7 +622,7 @@ const MenuContent = () => {
             variants={headerItem}
             className="mt-6 text-balance break-words font-heading text-4xl font-bold leading-[1.1] tracking-tight text-foreground sm:text-5xl md:text-6xl"
           >
-            {keyword ? (
+            {hasKeyword ? (
               <>
                 Results for{" "}
                 <span className="relative inline-block text-[#E0A526]">
@@ -638,12 +663,12 @@ const MenuContent = () => {
             variants={headerItem}
             className="mt-6 max-w-xl text-balance text-base text-muted-foreground sm:text-lg"
           >
-            {keyword
+            {hasKeyword
               ? "Narrow it down with the filters below, or clear the search to see everything."
               : "From tandoor classics to modern plates — handpicked, freshly made, and delivered hot."}
           </motion.p>
 
-          {keyword && (
+          {hasKeyword && (
             <motion.button
               variants={headerItem}
               type="button"
@@ -662,10 +687,34 @@ const MenuContent = () => {
               <span className="sr-only">Clear search</span>
             </motion.button>
           )}
+
+          {/* "Showing closest matches" hint for fuzzy-only results */}
+          <AnimatePresence>
+            {hasKeyword &&
+              effectiveDidYouMean &&
+              !isLoading &&
+              visible.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 8 }}
+                  transition={{ duration: 0.4, ease: EASE }}
+                  className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#E0A526]/30 bg-[#E0A526]/5 px-3.5 py-1.5 text-xs font-medium text-[#E0A526] sm:text-sm"
+                >
+                  <Sparkle className="h-3.5 w-3.5" />
+                  Showing closest matches for{" "}
+                  <span className="font-semibold">
+                    &ldquo;{effectiveDidYouMean}&rdquo;
+                  </span>
+                </motion.div>
+              )}
+          </AnimatePresence>
         </motion.header>
 
         <motion.div
-          initial={reduceMotion ? false : { opacity: 0, y: 30, filter: "blur(10px)" }}
+          initial={
+            reduceMotion ? false : { opacity: 0, y: 30, filter: "blur(10px)" }
+          }
           animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
           transition={{ duration: 0.9, ease: EASE, delay: 0.2 }}
           className="relative z-30 mx-auto mt-10 w-full max-w-5xl overflow-visible rounded-[2rem] border border-border bg-card/70 p-4 shadow-[0_24px_60px_-32px_rgba(74,46,32,0.35)] backdrop-blur-xl sm:mt-12 sm:p-6"
@@ -822,25 +871,43 @@ const MenuContent = () => {
               aria-live="polite"
               className="text-center text-sm text-muted-foreground"
             >
-              {loading ? (
+              {isLoading ? (
                 <span className="inline-flex items-center gap-2">
                   <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[#E0A526]" />
-                  Loading dishes…
+                  {hasKeyword ? "Searching dishes…" : "Loading dishes…"}
                 </span>
-              ) : error ? (
+              ) : isError ? (
                 "Menu unavailable"
               ) : visible.length === 0 ? (
-                "No dishes found"
+                hasKeyword ? (
+                  <>
+                    No match for{" "}
+                    <span className="font-semibold text-foreground">
+                      &ldquo;{keyword}&rdquo;
+                    </span>
+                  </>
+                ) : (
+                  "No dishes found"
+                )
               ) : (
                 <>
                   <span className="font-semibold tabular-nums text-foreground">
                     {visible.length}
                   </span>{" "}
                   {visible.length === 1 ? "dish" : "dishes"}
+                  {hasKeyword && (
+                    <>
+                      {" "}
+                      for{" "}
+                      <span className="font-semibold text-foreground">
+                        &ldquo;{keyword}&rdquo;
+                      </span>
+                    </>
+                  )}
                 </>
               )}
             </p>
-            {hasActiveFilters && !loading && (
+            {hasActiveFilters && !isLoading && (
               <motion.button
                 type="button"
                 onClick={resetAll}
@@ -860,7 +927,7 @@ const MenuContent = () => {
           />
         </motion.div>
 
-        {loading && (
+        {isLoading && (
           <div className={cn("relative mt-8", CARD_LIST_CLASSES)}>
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className={CARD_WIDTH_CLASSES}>
@@ -870,9 +937,11 @@ const MenuContent = () => {
           </div>
         )}
 
-        {!loading && error && (
+        {!isLoading && isError && (
           <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: 20, filter: "blur(8px)" }}
+            initial={
+              reduceMotion ? false : { opacity: 0, y: 20, filter: "blur(8px)" }
+            }
             animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
             transition={{ duration: 0.7, ease: EASE }}
             className="relative mx-auto mt-8 flex max-w-xl flex-col items-center overflow-hidden rounded-[2rem] border border-border bg-card/70 px-6 py-14 text-center backdrop-blur-xl"
@@ -886,7 +955,9 @@ const MenuContent = () => {
                 <Soup className="h-8 w-8" />
               </span>
               <h2 className="mt-5 font-heading text-2xl font-semibold text-foreground">
-                Couldn&apos;t load the menu
+                {hasKeyword
+                  ? "Couldn't search the menu"
+                  : "Couldn't load the menu"}
               </h2>
               <p className="mt-2 max-w-sm text-sm text-muted-foreground">
                 Check your connection and try again.
@@ -908,9 +979,11 @@ const MenuContent = () => {
           </motion.div>
         )}
 
-        {!loading && !error && visible.length === 0 && (
+        {!isLoading && !isError && visible.length === 0 && (
           <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: 20, filter: "blur(8px)" }}
+            initial={
+              reduceMotion ? false : { opacity: 0, y: 20, filter: "blur(8px)" }
+            }
             animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
             transition={{ duration: 0.7, ease: EASE }}
             className="relative mx-auto mt-8 flex max-w-xl flex-col items-center overflow-hidden rounded-[2rem] border border-dashed border-border bg-card/50 px-6 py-14 text-center"
@@ -924,7 +997,7 @@ const MenuContent = () => {
                 <UtensilsCrossed className="h-8 w-8" />
               </span>
               <h2 className="mt-5 break-words font-heading text-2xl font-semibold text-foreground">
-                {keyword ? (
+                {hasKeyword ? (
                   <>
                     Nothing found for{" "}
                     <span className="text-[#E0A526]">
@@ -936,7 +1009,9 @@ const MenuContent = () => {
                 )}
               </h2>
               <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-                Try a different word, or loosen the filters to see more dishes.
+                {hasKeyword
+                  ? "We couldn't find anything close. Try another word, or browse the full menu."
+                  : "Try a different word, or loosen the filters to see more dishes."}
               </p>
               <motion.button
                 type="button"
@@ -949,13 +1024,13 @@ const MenuContent = () => {
                   ON_GOLD,
                 )}
               >
-                {keyword ? "Show full menu" : "Clear filters"}
+                {hasKeyword ? "Show full menu" : "Clear filters"}
               </motion.button>
             </div>
           </motion.div>
         )}
 
-        {!loading && !error && visible.length > 0 && (
+        {!isLoading && !isError && visible.length > 0 && (
           <div className={cn("relative mt-8", CARD_LIST_CLASSES)}>
             <AnimatePresence mode="popLayout">
               {visible.map((dish, index) => (

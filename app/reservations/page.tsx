@@ -1,8 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { CalendarCheck, Check, X } from "lucide-react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import {
+  CalendarCheck,
+  Check,
+  X,
+  Sparkles,
+  Clock,
+  Users,
+  PartyPopper,
+  Mail,
+  User,
+  Phone,
+} from "lucide-react";
 import axios from "axios";
 import Link from "next/link";
 import ReservationFormComponent from "@/components/Reservations/reservation.form";
@@ -12,6 +23,8 @@ import { INITIAL_FORM, ReservationForm } from "@/types/reservation.types";
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 ).replace(/\/+$/, "");
+
+const EASE = [0.22, 1, 0.36, 1] as const;
 
 const extractError = (err: unknown, fallback: string) => {
   if (axios.isAxiosError(err)) {
@@ -25,15 +38,16 @@ const extractError = (err: unknown, fallback: string) => {
   return err instanceof Error ? err.message : fallback;
 };
 
-const ReservationsPage = () => {
+const ResevationsPage = () => {
   const [form, setForm] = useState<ReservationForm>(INITIAL_FORM);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const reduceMotion = useReducedMotion();
 
   const update = <K extends keyof ReservationForm>(
     key: K,
-    value: ReservationForm[K]
+    value: ReservationForm[K],
   ) => setForm((f) => ({ ...f, [key]: value }));
 
   const canSubmit =
@@ -63,7 +77,7 @@ const ReservationsPage = () => {
           occasion: form.occasion ?? "",
           notes: form.notes ?? "",
         },
-        { withCredentials: true }
+        { withCredentials: true },
       );
 
       setSubmitted(true);
@@ -82,26 +96,83 @@ const ReservationsPage = () => {
 
   return (
     <section className="section relative overflow-hidden">
-      <div
+      <motion.div
         aria-hidden
-        className="pointer-events-none absolute -top-24 left-1/4 h-96 w-96 rounded-full bg-primary/15 blur-3xl"
+        animate={
+          reduceMotion
+            ? undefined
+            : { opacity: [0.5, 0.8, 0.5], scale: [1, 1.1, 1] }
+        }
+        transition={{ duration: 5, ease: "easeInOut", repeat: Infinity }}
+        className="pointer-events-none absolute -top-24 left-1/4 h-96 w-96 rounded-full bg-[#E0A526]/15 blur-[120px]"
       />
-      <div
+      <motion.div
         aria-hidden
-        className="pointer-events-none absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-sky-100/50 blur-3xl dark:bg-white/10"
+        animate={
+          reduceMotion
+            ? undefined
+            : { opacity: [0.4, 0.7, 0.4], scale: [1, 1.12, 1] }
+        }
+        transition={{
+          duration: 6,
+          ease: "easeInOut",
+          repeat: Infinity,
+          delay: 0.5,
+        }}
+        className="pointer-events-none absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-[#C78E1E]/15 blur-[130px]"
       />
 
       <div className="content-wrap relative px-5 py-10">
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          initial={
+            reduceMotion ? false : { opacity: 0, y: 24, filter: "blur(8px)" }
+          }
+          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+          transition={{ duration: 0.8, ease: EASE }}
+          className="mx-auto mb-10 max-w-2xl text-center"
+        >
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#E0A526]/30 bg-[#E0A526]/10 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#E0A526]">
+            <Sparkles className="h-3.5 w-3.5" />
+            Reserve Your Table
+          </div>
+          <h1 className="mt-2 font-heading text-3xl font-bold text-foreground sm:text-4xl lg:text-5xl">
+            Book an{" "}
+            <span className="relative inline-block text-[#E0A526]">
+              unforgettable
+              <motion.span
+                aria-hidden
+                initial={reduceMotion ? false : { scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 1, ease: EASE, delay: 0.5 }}
+                style={{ transformOrigin: "left" }}
+                className="absolute -bottom-1 left-0 h-[3px] w-full rounded-full bg-gradient-to-r from-[#E0A526] to-[#C78E1E]"
+              />
+            </span>{" "}
+            evening
+          </h1>
+          <p className="mt-4 text-base text-muted-foreground">
+            Tell us when you&apos;re coming — we&apos;ll have the table ready,
+            warm, and waiting.
+          </p>
+        </motion.div>
+
+        <motion.div
+          initial={
+            reduceMotion ? false : { opacity: 0, y: 30, filter: "blur(10px)" }
+          }
+          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+          transition={{ duration: 0.9, ease: EASE, delay: 0.15 }}
           className="grid gap-8 lg:grid-cols-5 lg:gap-10"
         >
           {error && (
-            <div className="lg:col-span-5 rounded-2xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            <motion.div
+              initial={reduceMotion ? false : { opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, ease: EASE }}
+              className="lg:col-span-5 rounded-2xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+            >
               {error}
-            </div>
+            </motion.div>
           )}
           <ReservationFormComponent
             form={form}
@@ -121,11 +192,15 @@ const ReservationsPage = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.3, ease: EASE }}
             className="fixed inset-0 z-[10100] flex items-center justify-center p-4"
           >
-            <div
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="absolute inset-0 bg-black/50 backdrop-blur-md"
               onClick={closeModal}
               aria-hidden
             />
@@ -134,111 +209,194 @@ const ReservationsPage = () => {
               role="dialog"
               aria-modal="true"
               aria-label="Reservation confirmed"
-              initial={{ opacity: 0, y: 20, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.96 }}
-              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              initial={
+                reduceMotion
+                  ? { opacity: 0 }
+                  : { opacity: 0, y: 30, scale: 0.94, filter: "blur(10px)" }
+              }
+              animate={{
+                opacity: 1,
+                y: 0,
+                scale: 1,
+                filter: "blur(0px)",
+              }}
+              exit={
+                reduceMotion
+                  ? { opacity: 0 }
+                  : { opacity: 0, y: -20, scale: 0.94, filter: "blur(10px)" }
+              }
+              transition={{ duration: 0.5, ease: EASE }}
               className="
                 relative w-full max-w-md overflow-hidden rounded-3xl
-                border border-emerald-400/50
-                bg-emerald-500/20
-                shadow-xl backdrop-blur-2xl backdrop-saturate-150
-                dark:border-emerald-400/40 dark:bg-emerald-500/15
+                border border-[#E0A526]/40
+                bg-card/95 shadow-[0_40px_100px_-30px_rgba(74,46,32,0.6)]
+                backdrop-blur-2xl backdrop-saturate-150
               "
             >
               <div
                 aria-hidden
-                className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/80 to-transparent"
+                className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#E0A526] to-transparent"
               />
-              <div
+
+              <motion.div
                 aria-hidden
-                className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-emerald-400/30 blur-3xl"
+                animate={
+                  reduceMotion
+                    ? undefined
+                    : { opacity: [0.4, 0.8, 0.4], scale: [1, 1.15, 1] }
+                }
+                transition={{
+                  duration: 4,
+                  ease: "easeInOut",
+                  repeat: Infinity,
+                }}
+                className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-[#E0A526]/30 blur-3xl"
               />
-              <div
+              <motion.div
                 aria-hidden
-                className="pointer-events-none absolute -bottom-20 -left-16 h-56 w-56 rounded-full bg-emerald-500/25 blur-3xl"
+                animate={
+                  reduceMotion
+                    ? undefined
+                    : { opacity: [0.3, 0.65, 0.3], scale: [1, 1.12, 1] }
+                }
+                transition={{
+                  duration: 5,
+                  ease: "easeInOut",
+                  repeat: Infinity,
+                  delay: 0.6,
+                }}
+                className="pointer-events-none absolute -bottom-20 -left-16 h-56 w-56 rounded-full bg-[#C78E1E]/30 blur-3xl"
               />
 
               <button
                 type="button"
                 onClick={closeModal}
                 aria-label="Close"
-                className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full text-emerald-900/70 transition-colors hover:bg-emerald-500/20 hover:text-emerald-950 dark:text-emerald-50/80 dark:hover:text-emerald-50"
+                className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-[#E0A526]/10 hover:text-[#E0A526]"
               >
                 <X className="h-4 w-4" />
               </button>
 
               <div className="relative p-6 text-center sm:p-8">
-                <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/30 text-emerald-900 ring-1 ring-emerald-400/50 dark:text-emerald-100">
-                  <Check className="h-8 w-8" strokeWidth={3} />
-                </span>
+                <motion.span
+                  initial={reduceMotion ? false : { scale: 0, rotate: -180 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{
+                    type: "spring",
+                    stiffness: 220,
+                    damping: 18,
+                    delay: 0.15,
+                  }}
+                  className="relative mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-[#E0A526] to-[#C78E1E] text-white shadow-[0_0_40px_rgba(224,165,38,0.6)]"
+                >
+                  <motion.span
+                    aria-hidden
+                    animate={
+                      reduceMotion
+                        ? undefined
+                        : {
+                            scale: [1, 1.8, 1.8],
+                            opacity: [0.6, 0, 0],
+                          }
+                    }
+                    transition={{
+                      duration: 2.4,
+                      ease: "easeOut",
+                      repeat: Infinity,
+                      repeatDelay: 1.4,
+                    }}
+                    className="absolute inset-0 rounded-full border-2 border-[#E0A526]"
+                  />
+                  <Check className="relative h-10 w-10" strokeWidth={3} />
+                </motion.span>
 
-                <h2 className="mt-5 font-heading text-2xl font-bold text-emerald-950 dark:text-emerald-50">
-                  Reservation confirmed
-                </h2>
-                <p className="mt-2 text-sm text-emerald-900/80 dark:text-emerald-100/85">
-                  Thanks {form.name.split(" ")[0] || "friend"} — we&apos;ve
-                  saved your table.
-                </p>
+                <motion.div
+                  initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, ease: EASE, delay: 0.3 }}
+                >
+                  <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-[#E0A526]/30 bg-[#E0A526]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-[#E0A526]">
+                    <PartyPopper className="h-3 w-3" />
+                    Confirmed
+                  </div>
 
-                <div className="mt-5 rounded-2xl border border-emerald-400/40 bg-emerald-500/15 p-4 text-left">
-                  <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-emerald-900/80 dark:text-emerald-100/80">
+                  <h2 className="mt-3 font-heading text-2xl font-bold text-foreground sm:text-3xl">
+                    Reservation confirmed
+                  </h2>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Thanks {form.name.split(" ")[0] || "friend"} — we&apos;ve
+                    saved your table.
+                  </p>
+                </motion.div>
+
+                <motion.div
+                  initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, ease: EASE, delay: 0.4 }}
+                  className="relative mt-6 overflow-hidden rounded-2xl border border-[#E0A526]/30 bg-[#E0A526]/5 p-4 text-left backdrop-blur-sm"
+                >
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-[#E0A526]/50 to-transparent"
+                  />
+                  <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-[#E0A526]">
                     <CalendarCheck className="h-3 w-3" />
                     Your booking
                   </div>
-                  <div className="mt-3 space-y-2 text-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-emerald-900/70 dark:text-emerald-100/75">
-                        Date
-                      </span>
-                      <span className="font-medium text-emerald-950 dark:text-emerald-50">
-                        {form.date}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-emerald-900/70 dark:text-emerald-100/75">
-                        Time
-                      </span>
-                      <span className="font-medium text-emerald-950 dark:text-emerald-50">
-                        {form.time}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-emerald-900/70 dark:text-emerald-100/75">
-                        Guests
-                      </span>
-                      <span className="font-medium text-emerald-950 dark:text-emerald-50">
-                        {form.guests}
-                      </span>
-                    </div>
+
+                  <div className="mt-3 space-y-2.5 text-sm">
+                    <DetailRow
+                      icon={<CalendarCheck className="h-3.5 w-3.5" />}
+                      label="Date"
+                      value={form.date}
+                      delay={0.5}
+                    />
+                    <DetailRow
+                      icon={<Clock className="h-3.5 w-3.5" />}
+                      label="Time"
+                      value={form.time}
+                      delay={0.55}
+                    />
+                    <DetailRow
+                      icon={<Users className="h-3.5 w-3.5" />}
+                      label="Guests"
+                      value={String(form.guests)}
+                      delay={0.6}
+                    />
                     {form.occasion && (
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-emerald-900/70 dark:text-emerald-100/75">
-                          Occasion
-                        </span>
-                        <span className="font-medium text-emerald-950 dark:text-emerald-50">
-                          {form.occasion}
-                        </span>
-                      </div>
+                      <DetailRow
+                        icon={<Sparkles className="h-3.5 w-3.5" />}
+                        label="Occasion"
+                        value={form.occasion}
+                        delay={0.65}
+                      />
                     )}
                   </div>
-                </div>
+                </motion.div>
 
-                <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+                <motion.div
+                  initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, ease: EASE, delay: 0.7 }}
+                  className="mt-6 flex flex-col gap-2 sm:flex-row"
+                >
                   <Link
                     href="/account/reservations"
-                    className="inline-flex h-11 flex-1 items-center justify-center rounded-2xl bg-emerald-600 px-5 text-sm font-semibold text-white transition-all hover:bg-emerald-600/90 hover:shadow-md"
+                    className="group/btn relative inline-flex h-11 flex-1 items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-br from-[#E0A526] to-[#C78E1E] px-5 text-sm font-semibold text-[#3B2416] shadow-[0_10px_28px_-10px_rgba(224,165,38,0.6)] transition-shadow duration-500 hover:shadow-[0_14px_32px_-10px_rgba(224,165,38,0.75)]"
                   >
-                    View bookings
+                    <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-1000 ease-out group-hover/btn:translate-x-full" />
+                    <span className="relative flex items-center gap-2">
+                      View bookings
+                    </span>
                   </Link>
                   <button
                     type="button"
                     onClick={closeModal}
-                    className="inline-flex h-11 flex-1 items-center justify-center rounded-2xl border border-emerald-500/50 bg-emerald-500/15 px-5 text-sm font-semibold text-emerald-950 transition-colors hover:bg-emerald-500/25 dark:text-emerald-50"
+                    className="inline-flex h-11 flex-1 items-center justify-center rounded-2xl border border-[#E0A526]/40 bg-white/5 px-5 text-sm font-semibold text-foreground transition-colors hover:border-[#E0A526]/70 hover:bg-[#E0A526]/10"
                   >
                     Book another
                   </button>
-                </div>
+                </motion.div>
               </div>
             </motion.div>
           </motion.div>
@@ -248,4 +406,29 @@ const ReservationsPage = () => {
   );
 };
 
-export default ReservationsPage;
+const DetailRow = ({
+  icon,
+  label,
+  value,
+  delay = 0,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  delay?: number;
+}) => (
+  <motion.div
+    initial={{ opacity: 0, x: -8 }}
+    animate={{ opacity: 1, x: 0 }}
+    transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1], delay }}
+    className="flex items-center justify-between gap-3"
+  >
+    <span className="inline-flex items-center gap-2 text-muted-foreground">
+      <span className="text-[#E0A526]">{icon}</span>
+      {label}
+    </span>
+    <span className="font-medium text-foreground">{value}</span>
+  </motion.div>
+);
+
+export default ResevationsPage;

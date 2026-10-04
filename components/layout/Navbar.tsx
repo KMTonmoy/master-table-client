@@ -8,6 +8,7 @@ import {
   useSyncExternalStore,
   useTransition,
 } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import axios from "axios";
@@ -55,6 +56,10 @@ const HISTORY_EVENT = "mastertable:search-history-change";
 const HISTORY_LIMIT = 10;
 const EMPTY_HISTORY: string[] = [];
 
+const DEBOUNCE_MS = 250;
+const MIN_QUERY_LEN = 2;
+const SUGGESTION_LIMIT = 6;
+
 const Z = {
   drawerBackdrop: "z-[9998]",
   drawer: "z-[9999]",
@@ -63,6 +68,14 @@ const Z = {
   userDropdown: "z-[10050]",
   authModal: "z-[10100]",
 } as const;
+
+type Suggestion = {
+  id: string;
+  name: string;
+  category?: string;
+  price?: number;
+  image?: string;
+};
 
 function subscribeToHistory(callback: () => void) {
   window.addEventListener("storage", callback);
@@ -155,12 +168,16 @@ const Navbar = () => {
   const [cartPulse, setCartPulse] = useState(0);
   const [isPending, startTransition] = useTransition();
 
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [searching, setSearching] = useState(false);
+
   const headerRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const mobileUserMenuRef = useRef<HTMLDivElement>(null);
   const prevCartRef = useRef(0);
+  const searchReqRef = useRef(0);
 
   const rawHistory = useSyncExternalStore(
     subscribeToHistory,
@@ -309,12 +326,54 @@ const Navbar = () => {
     };
   }, [mobileUserMenuOpen]);
 
+  // Debounced API search — only runs when query meets the minimum length.
   useEffect(() => {
-    if (activeIndex < 0) return;
-    formRef.current
-      ?.querySelector(`[data-history-index="${activeIndex}"]`)
-      ?.scrollIntoView({ block: "nearest" });
-  }, [activeIndex]);
+    const q = query.trim();
+    if (q.length < MIN_QUERY_LEN) return;
+
+    const reqId = ++searchReqRef.current;
+
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const { data } = await axios.get<{
+          results?: Array<{
+            id?: string;
+            _id?: string;
+            name: string;
+            category?: string;
+            price?: number;
+            images?: string[];
+          }>;
+        }>(`${API_URL}/api/products/keyword`, {
+          params: { q, limit: SUGGESTION_LIMIT },
+        });
+
+        if (reqId !== searchReqRef.current) return;
+
+        const list = Array.isArray(data?.results) ? data.results : [];
+        const normalized: Suggestion[] = list.map((item) => ({
+          id: String(item.id ?? item._id ?? ""),
+          name: item.name,
+          category: item.category,
+          price: typeof item.price === "number" ? item.price : undefined,
+          image:
+            Array.isArray(item.images) && item.images[0]
+              ? item.images[0]
+              : undefined,
+        }));
+
+        setSuggestions(normalized);
+      } catch {
+        if (reqId !== searchReqRef.current) return;
+        setSuggestions([]);
+      } finally {
+        if (reqId === searchReqRef.current) setSearching(false);
+      }
+    }, DEBOUNCE_MS);
+
+    return () => clearTimeout(timer);
+  }, [query]);
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
@@ -329,9 +388,25 @@ const Navbar = () => {
     return history.filter((item) => item.toLowerCase().includes(needle));
   }, [history, query]);
 
-  const showEmptyHint = !hasQuery && history.length === 0;
+  const showEmptyHint =
+    !hasQuery && history.length === 0 && suggestions.length === 0;
+
+  const hasResults = suggestions.length > 0;
+  const hasHistory = visibleHistory.length > 0;
+
   const showDropdown =
-    dropdownOpen && !isPending && (visibleHistory.length > 0 || showEmptyHint);
+    dropdownOpen &&
+    (hasResults || hasHistory || showEmptyHint || (hasQuery && searching));
+
+  const flatItems = useMemo(() => {
+    const list: Array<
+      | { kind: "product"; data: Suggestion }
+      | { kind: "history"; keyword: string }
+    > = [];
+    suggestions.forEach((s) => list.push({ kind: "product", data: s }));
+    visibleHistory.forEach((h) => list.push({ kind: "history", keyword: h }));
+    return list;
+  }, [suggestions, visibleHistory]);
 
   const openAuth = (mode: AuthMode) => {
     setAuthMode(mode);
@@ -364,6 +439,16 @@ const Navbar = () => {
     inputRef.current?.focus();
   };
 
+  const goToProduct = (id: string) => {
+    if (!id) return;
+    closeDropdown();
+    setOpen(false);
+    inputRef.current?.blur();
+    startTransition(() => {
+      router.push(`/menu/${id}`);
+    });
+  };
+
   const runSearch = (raw: string) => {
     const keyword = raw.trim();
     if (!keyword) return;
@@ -372,7 +457,7 @@ const Navbar = () => {
     setOpen(false);
     inputRef.current?.blur();
     startTransition(() => {
-      router.push(`/menu/${encodeURIComponent(keyword)}`);
+      router.push(`/menu?q=${encodeURIComponent(keyword)}`);
     });
   };
 
@@ -381,11 +466,36 @@ const Navbar = () => {
     runSearch(keyword);
   };
 
+  const pickItem = (index: number) => {
+    const item = flatItems[index];
+    if (!item) return;
+    if (item.kind === "product") {
+      goToProduct(item.data.id);
+    } else {
+      pickHistoryItem(item.keyword);
+    }
+  };
+
+  // Called from the input's onChange — resets highlight AND cancels
+  // in-flight requests / clears stale suggestions when the query is short.
+  const onQueryChange = (value: string) => {
+    setQuery(value);
+    setActiveIndex(-1);
+
+    const trimmed = value.trim();
+    if (trimmed.length < MIN_QUERY_LEN) {
+      searchReqRef.current++;
+      setSuggestions([]);
+      setSearching(false);
+    }
+
+    setDropdownOpen(true);
+  };
+
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const picked = showDropdown ? visibleHistory[activeIndex] : undefined;
-    if (picked) {
-      pickHistoryItem(picked);
+    if (activeIndex >= 0 && activeIndex < flatItems.length) {
+      pickItem(activeIndex);
       return;
     }
     runSearch(query);
@@ -408,7 +518,7 @@ const Navbar = () => {
         setDropdownOpen(true);
         return;
       }
-      const count = visibleHistory.length;
+      const count = flatItems.length;
       if (count === 0) return;
       e.preventDefault();
       setActiveIndex((current) => {
@@ -424,7 +534,10 @@ const Navbar = () => {
   };
 
   const clearQuery = () => {
+    searchReqRef.current++;
     setQuery("");
+    setSuggestions([]);
+    setSearching(false);
     setActiveIndex(-1);
     inputRef.current?.focus();
   };
@@ -952,21 +1065,24 @@ const Navbar = () => {
                   "group-focus-within:border-primary/70 group-focus-within:bg-background group-focus-within:shadow-[0_8px_24px_-8px] group-focus-within:shadow-primary/40",
                 )}
               >
-                <Search
-                  aria-hidden
-                  className="h-5 w-5 shrink-0 text-muted-foreground transition-colors duration-300 group-focus-within:text-primary"
-                />
+                {searching && hasQuery ? (
+                  <Loader2
+                    aria-hidden
+                    className="h-5 w-5 shrink-0 animate-spin text-primary"
+                  />
+                ) : (
+                  <Search
+                    aria-hidden
+                    className="h-5 w-5 shrink-0 text-muted-foreground transition-colors duration-300 group-focus-within:text-primary"
+                  />
+                )}
 
                 <input
                   ref={inputRef}
                   type="search"
                   name="q"
                   value={query}
-                  onChange={(e) => {
-                    setQuery(e.target.value);
-                    setActiveIndex(-1);
-                    setDropdownOpen(true);
-                  }}
+                  onChange={(e) => onQueryChange(e.target.value)}
                   onFocus={() => setDropdownOpen(true)}
                   onClick={() => setDropdownOpen(true)}
                   onKeyDown={onInputKeyDown}
@@ -1037,55 +1153,128 @@ const Navbar = () => {
                   <p className="px-4 py-6 text-center text-base text-muted-foreground">
                     Your recent searches will show up here.
                   </p>
+                ) : !hasResults && !hasHistory && hasQuery && searching ? (
+                  <p className="px-4 py-6 text-center text-base text-muted-foreground">
+                    Searching…
+                  </p>
+                ) : !hasResults && !hasHistory && hasQuery ? (
+                  <p className="px-4 py-6 text-center text-base text-muted-foreground">
+                    No dishes match &ldquo;{query}&rdquo;. Try another word.
+                  </p>
                 ) : (
                   <>
-                    <div className="flex shrink-0 items-center justify-between gap-3 px-4 pb-1 pt-3 sm:px-5 sm:pt-4">
-                      <span className="text-sm font-medium text-muted-foreground">
-                        {hasQuery ? "Matching searches" : "Recent searches"}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={clearHistory}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Clear all
-                      </button>
-                    </div>
+                    {hasResults && (
+                      <>
+                        <div className="flex shrink-0 items-center justify-between gap-3 px-4 pb-1 pt-3 sm:px-5 sm:pt-4">
+                          <span className="text-sm font-medium text-muted-foreground">
+                            Dishes
+                          </span>
+                        </div>
+                        <ul className="shrink-0 p-2">
+                          {suggestions.map((s, i) => {
+                            const active = activeIndex === i;
+                            return (
+                              <li key={s.id || `s-${i}`} data-history-index={i}>
+                                <button
+                                  type="button"
+                                  onPointerEnter={() => setActiveIndex(i)}
+                                  onClick={() => goToProduct(s.id)}
+                                  className={cn(
+                                    "flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors sm:rounded-2xl sm:px-3",
+                                    "hover:bg-secondary focus-visible:bg-secondary focus-visible:outline-none",
+                                    active && "bg-secondary",
+                                  )}
+                                >
+                                  <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-secondary">
+                                    {s.image ? (
+                                      <Image
+                                        src={s.image}
+                                        alt=""
+                                        fill
+                                        sizes="48px"
+                                        className="object-cover"
+                                      />
+                                    ) : (
+                                      <span className="flex h-full w-full items-center justify-center text-lg">
+                                        🍽️
+                                      </span>
+                                    )}
+                                  </span>
+                                  <span className="flex min-w-0 flex-1 flex-col">
+                                    <span className="truncate text-sm font-medium text-foreground">
+                                      {s.name}
+                                    </span>
+                                    <span className="truncate text-xs text-muted-foreground">
+                                      {s.category || "Dish"}
+                                      {typeof s.price === "number" && (
+                                        <> · ${s.price.toFixed(2)}</>
+                                      )}
+                                    </span>
+                                  </span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </>
+                    )}
 
-                    <ul className="overflow-y-auto overscroll-contain p-2">
-                      {visibleHistory.map((item, index) => (
-                        <li
-                          key={item}
-                          data-history-index={index}
-                          className={cn(
-                            "group/row flex items-center rounded-xl transition-colors sm:rounded-2xl",
-                            "hover:bg-secondary focus-within:bg-secondary",
-                            index === activeIndex && "bg-secondary",
-                          )}
-                        >
+                    {hasHistory && (
+                      <>
+                        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border/60 px-4 pb-1 pt-3 sm:px-5 sm:pt-4">
+                          <span className="text-sm font-medium text-muted-foreground">
+                            {hasQuery ? "Matching searches" : "Recent searches"}
+                          </span>
                           <button
                             type="button"
-                            onClick={() => pickHistoryItem(item)}
-                            className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-3 text-left text-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:rounded-2xl sm:px-4"
+                            onClick={clearHistory}
+                            className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           >
-                            <History
-                              aria-hidden
-                              className="h-5 w-5 shrink-0 text-muted-foreground"
-                            />
-                            <span className="truncate">{item}</span>
+                            <Trash2 className="h-4 w-4" />
+                            Clear all
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => removeSearch(item)}
-                            aria-label={`Remove ${item} from search history`}
-                            className="mr-1.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-all hover:bg-background hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
+                        </div>
+
+                        <ul className="overflow-y-auto overscroll-contain p-2">
+                          {visibleHistory.map((item, i) => {
+                            const index = suggestions.length + i;
+                            const active = activeIndex === index;
+                            return (
+                              <li
+                                key={item}
+                                data-history-index={index}
+                                className={cn(
+                                  "group/row flex items-center rounded-xl transition-colors sm:rounded-2xl",
+                                  "hover:bg-secondary focus-within:bg-secondary",
+                                  active && "bg-secondary",
+                                )}
+                              >
+                                <button
+                                  type="button"
+                                  onPointerEnter={() => setActiveIndex(index)}
+                                  onClick={() => pickHistoryItem(item)}
+                                  className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-3 text-left text-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:rounded-2xl sm:px-4"
+                                >
+                                  <History
+                                    aria-hidden
+                                    className="h-5 w-5 shrink-0 text-muted-foreground"
+                                  />
+                                  <span className="truncate">{item}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => removeSearch(item)}
+                                  aria-label={`Remove ${item} from search history`}
+                                  className="mr-1.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-all hover:bg-background hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </>
+                    )}
                   </>
                 )}
               </div>
