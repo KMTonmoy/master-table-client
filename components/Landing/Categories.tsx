@@ -18,7 +18,7 @@ const CATEGORIES: Category[] = [
   {
     name: "Tandoor",
     dishCount: 9,
-    href: "/menu/tandoor",
+    href: "/menu?q=tandoor",
     image:
       "https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?auto=format&fit=crop&w=800&q=80",
     accent: "#E0A526",
@@ -26,7 +26,7 @@ const CATEGORIES: Category[] = [
   {
     name: "Curries",
     dishCount: 14,
-    href: "/menu/curries",
+    href: "/menu?q=curry",
     image:
       "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=800&q=80",
     accent: "#C78E1E",
@@ -34,7 +34,7 @@ const CATEGORIES: Category[] = [
   {
     name: "Biryani",
     dishCount: 6,
-    href: "/menu/biryani",
+    href: "/menu?q=biryani",
     image:
       "https://images.unsplash.com/photo-1631515243349-e0cb75fb8d3a?auto=format&fit=crop&w=800&q=80",
     accent: "#B8751A",
@@ -42,7 +42,7 @@ const CATEGORIES: Category[] = [
   {
     name: "Breads",
     dishCount: 8,
-    href: "/menu/breads",
+    href: "/menu?q=bread",
     image:
       "https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=800&q=80",
     accent: "#A85F1A",
@@ -50,7 +50,7 @@ const CATEGORIES: Category[] = [
   {
     name: "Desserts",
     dishCount: 5,
-    href: "/menu/desserts",
+    href: "/menu?q=dessert",
     image:
       "https://images.unsplash.com/photo-1601303516534-bf0b0e3e8e1f?auto=format&fit=crop&w=800&q=80",
     accent: "#8A4B14",
@@ -180,7 +180,7 @@ const Categories = () => {
           </motion.div>
         </motion.div>
 
-        {/* GRID — each card uses whileInView so it re-triggers on scroll up */}
+        {/* GRID */}
         <div className="mt-10 grid gap-5 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
           {CATEGORIES.map((category, i) => (
             <motion.div
@@ -194,7 +194,11 @@ const Categories = () => {
               whileTap={{ scale: 0.97 }}
               className="w-full"
             >
-              <Link href={category.href} className="group block h-full">
+              <Link
+                href={category.href}
+                aria-label={`Browse ${category.name}`}
+                className="group block h-full"
+              >
                 <div
                   className="
                     relative h-full overflow-hidden rounded-3xl

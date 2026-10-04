@@ -135,6 +135,37 @@ const formatCartCount = (n: number) => {
   return String(n);
 };
 
+/**
+ * Highlights the portion of `text` that matches `query` (case-insensitive).
+ * Used in search suggestions so the matched fragment pops.
+ */
+const HighlightMatch = ({
+  text,
+  query,
+}: {
+  text: string;
+  query: string;
+}) => {
+  const q = query.trim();
+  if (!q) return <>{text}</>;
+
+  const lowerText = text.toLowerCase();
+  const lowerQuery = q.toLowerCase();
+  const idx = lowerText.indexOf(lowerQuery);
+
+  if (idx < 0) return <>{text}</>;
+
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="rounded bg-[#E0A526]/30 px-0.5 text-foreground">
+        {text.slice(idx, idx + q.length)}
+      </mark>
+      {text.slice(idx + q.length)}
+    </>
+  );
+};
+
 const USER_MENU_ITEMS = [
   { label: "My profile", href: "/account/profile", icon: UserCog },
   { label: "My orders", href: "/account/orders", icon: Package },
@@ -1202,7 +1233,10 @@ const Navbar = () => {
                                   </span>
                                   <span className="flex min-w-0 flex-1 flex-col">
                                     <span className="truncate text-sm font-medium text-foreground">
-                                      {s.name}
+                                      <HighlightMatch
+                                        text={s.name}
+                                        query={query}
+                                      />
                                     </span>
                                     <span className="truncate text-xs text-muted-foreground">
                                       {s.category || "Dish"}
@@ -1259,7 +1293,12 @@ const Navbar = () => {
                                     aria-hidden
                                     className="h-5 w-5 shrink-0 text-muted-foreground"
                                   />
-                                  <span className="truncate">{item}</span>
+                                  <span className="truncate">
+                                    <HighlightMatch
+                                      text={item}
+                                      query={query}
+                                    />
+                                  </span>
                                 </button>
                                 <button
                                   type="button"

@@ -391,7 +391,9 @@ const SortDropdown = ({ value, onChange, reduceMotion }: SortDropdownProps) => {
                             />
                           )}
                         </span>
-                        <span className="truncate font-medium">{s.label}</span>
+                        <span className="truncate font-medium">
+                          {s.label}
+                        </span>
                       </span>
                       {selected && (
                         <span className="relative text-[10px] font-semibold uppercase tracking-wider text-[#E0A526]">
