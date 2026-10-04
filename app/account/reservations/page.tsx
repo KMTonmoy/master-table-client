@@ -4,7 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import axios from "axios";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import {
+  AnimatePresence,
+  motion,
+  useReducedMotion,
+  type Variants,
+} from "framer-motion";
 import {
   AlertCircle,
   Calendar,
@@ -27,6 +32,37 @@ import { cn } from "@/lib/utils";
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 ).replace(/\/+$/, "");
+
+const EASE = [0.22, 1, 0.36, 1] as const;
+
+const headerContainer: Variants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1, delayChildren: 0.05 },
+  },
+};
+
+const headerItem: Variants = {
+  hidden: { opacity: 0, y: 30, filter: "blur(8px)" },
+  show: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: { duration: 0.85, ease: EASE },
+  },
+};
+
+const cardReveal: Variants = {
+  hidden: { opacity: 0, y: 40, scale: 0.96, filter: "blur(8px)" },
+  show: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    filter: "blur(0px)",
+    transition: { duration: 0.7, ease: EASE },
+  },
+};
 
 type ReservationStatus = "Confirmed" | "Pending" | "Cancelled" | "Completed";
 
@@ -65,22 +101,20 @@ const STATUS_STYLES: Record<
   }
 > = {
   Confirmed: {
-    chip:
-      "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
+    chip: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
     dot: "bg-emerald-500",
     icon: Check,
     label: "Confirmed",
   },
   Pending: {
-    chip:
-      "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30",
+    chip: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30",
     dot: "bg-amber-500",
     icon: Clock,
     label: "Pending",
   },
   Completed: {
-    chip: "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30",
-    dot: "bg-sky-500",
+    chip: "bg-[#E0A526]/15 text-[#E0A526] border-[#E0A526]/30",
+    dot: "bg-[#E0A526]",
     icon: Utensils,
     label: "Completed",
   },
@@ -142,7 +176,7 @@ const ReservationsPage = () => {
       try {
         const { data } = await axios.get<Reservation[]>(
           `${API_URL}/reservations/my-reservations`,
-          { withCredentials: true }
+          { withCredentials: true },
         );
         if (cancelled) return;
         setReservations(Array.isArray(data) ? data : []);
@@ -172,11 +206,14 @@ const ReservationsPage = () => {
       filter === "All"
         ? reservations
         : reservations.filter((r) => r.status === filter),
-    [reservations, filter]
+    [reservations, filter],
   );
 
   const upcoming = useMemo(() => filtered.filter(isUpcoming), [filtered]);
-  const past = useMemo(() => filtered.filter((r) => !isUpcoming(r)), [filtered]);
+  const past = useMemo(
+    () => filtered.filter((r) => !isUpcoming(r)),
+    [filtered],
+  );
 
   const countBy = (tab: FilterTab) =>
     tab === "All"
@@ -189,13 +226,11 @@ const ReservationsPage = () => {
     const guests = reservations
       .filter(isUpcoming)
       .reduce((sum, r) => sum + (r.guests || 0), 0);
-    const next = reservations
-      .filter(isUpcoming)
-      .sort((a, b) => {
-        const da = new Date(`${a.date}T${a.time || "00:00"}`);
-        const db = new Date(`${b.date}T${b.time || "00:00"}`);
-        return da.getTime() - db.getTime();
-      })[0];
+    const next = reservations.filter(isUpcoming).sort((a, b) => {
+      const da = new Date(`${a.date}T${a.time || "00:00"}`);
+      const db = new Date(`${b.date}T${b.time || "00:00"}`);
+      return da.getTime() - db.getTime();
+    })[0];
     return { total, upcomingCount, guests, next };
   }, [reservations]);
 
@@ -206,7 +241,7 @@ const ReservationsPage = () => {
     if (!canCancel(reservation)) return;
     if (
       !window.confirm(
-        `Cancel your reservation on ${formatDate(reservation.date)}?`
+        `Cancel your reservation on ${formatDate(reservation.date)}?`,
       )
     ) {
       return;
@@ -218,14 +253,14 @@ const ReservationsPage = () => {
       await axios.patch(
         `${API_URL}/reservations/${encodeURIComponent(reservation.id)}/cancel`,
         {},
-        { withCredentials: true }
+        { withCredentials: true },
       );
       setReservations((prev) =>
         prev.map((r) =>
           r.id === reservation.id
             ? { ...r, status: "Cancelled" as ReservationStatus }
-            : r
-        )
+            : r,
+        ),
       );
     } catch (err) {
       setCancelError(extractError(err, "Failed to cancel reservation"));
@@ -237,52 +272,121 @@ const ReservationsPage = () => {
   if (loading) {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-5xl items-center justify-center px-4">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, ease: EASE }}
+          className="relative"
+        >
+          <motion.span
+            aria-hidden
+            animate={{ scale: [1, 1.6, 1.6], opacity: [0.5, 0, 0] }}
+            transition={{ duration: 2, ease: "easeOut", repeat: Infinity }}
+            className="absolute inset-0 rounded-full border border-[#E0A526]"
+          />
+          <Loader2 className="h-8 w-8 animate-spin text-[#E0A526]" />
+        </motion.div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+    <div className="relative mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+      {/* Ambient gold glows */}
+      <motion.div
+        aria-hidden
+        animate={
+          reduce ? undefined : { opacity: [0.4, 0.8, 0.4], scale: [1, 1.1, 1] }
+        }
+        transition={{ duration: 5, ease: "easeInOut", repeat: Infinity }}
+        className="pointer-events-none absolute -top-32 left-1/4 h-72 w-72 rounded-full bg-[#E0A526]/12 blur-[100px]"
+      />
+      <motion.div
+        aria-hidden
+        animate={
+          reduce ? undefined : { opacity: [0.3, 0.7, 0.3], scale: [1, 1.12, 1] }
+        }
+        transition={{
+          duration: 6,
+          ease: "easeInOut",
+          repeat: Infinity,
+          delay: 0.5,
+        }}
+        className="pointer-events-none absolute bottom-0 right-1/4 h-80 w-80 rounded-full bg-[#C78E1E]/12 blur-[120px]"
+      />
+
+      {/* HEADER */}
       <motion.header
-        initial={reduce ? false : { opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="flex flex-wrap items-end justify-between gap-6"
+        variants={headerContainer}
+        initial={reduce ? false : "hidden"}
+        animate="show"
+        className="relative flex flex-wrap items-end justify-between gap-6"
       >
         <div>
-          <p className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+          <motion.p
+            variants={headerItem}
+            className="inline-flex items-center gap-2 rounded-full border border-[#E0A526]/30 bg-[#E0A526]/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#E0A526]"
+          >
             <CalendarCheck className="h-3.5 w-3.5" />
             My reservations
-          </p>
-          <h1 className="mt-4 font-heading text-4xl font-bold leading-tight text-foreground sm:text-5xl">
-            Your reservations
-          </h1>
-          <p className="mt-2 max-w-2xl text-base text-muted-foreground">
+          </motion.p>
+          <motion.h1
+            variants={headerItem}
+            className="mt-4 font-heading text-4xl font-bold leading-tight text-foreground sm:text-5xl"
+          >
+            Your{" "}
+            <span className="relative inline-block text-[#E0A526]">
+              reservations
+              <motion.span
+                aria-hidden
+                initial={reduce ? false : { scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 1, ease: EASE, delay: 0.5 }}
+                style={{ transformOrigin: "left" }}
+                className="absolute -bottom-1 left-0 h-[3px] w-full rounded-full bg-gradient-to-r from-[#E0A526] to-[#C78E1E]"
+              />
+            </span>
+          </motion.h1>
+          <motion.p
+            variants={headerItem}
+            className="mt-3 max-w-2xl text-base text-muted-foreground"
+          >
             Every table you have booked — upcoming and past.
-          </p>
+          </motion.p>
         </div>
 
-        <Link
-          href="/reservations"
-          className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary px-5 text-sm font-semibold text-[#2B1B10] transition-all hover:bg-primary/90 hover:shadow-md"
-        >
-          <Calendar className="h-4 w-4" />
-          Book a table
-        </Link>
+        <motion.div variants={headerItem}>
+          <Link
+            href="/reservations"
+            className="
+              group/btn relative inline-flex h-11 items-center gap-2 overflow-hidden rounded-2xl
+              bg-gradient-to-br from-[#E0A526] to-[#C78E1E] px-5 text-sm font-semibold text-[#3B2416]
+              shadow-[0_10px_28px_-10px_rgba(224,165,38,0.6)]
+              transition-shadow duration-300
+              hover:shadow-[0_14px_32px_-10px_rgba(224,165,38,0.75)]
+            "
+          >
+            <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-1000 ease-out group-hover/btn:translate-x-full" />
+            <span className="relative flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Book a table
+            </span>
+          </Link>
+        </motion.div>
       </motion.header>
 
+      {/* STATS */}
       <motion.div
-        initial={reduce ? false : { opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.05 }}
+        variants={headerContainer}
+        initial={reduce ? false : "hidden"}
+        animate="show"
         className="mt-8 grid gap-4 sm:grid-cols-3"
       >
         <StatCard
           label="Total bookings"
           value={String(stats.total)}
           icon={CalendarCheck}
-          tone="primary"
+          tone="gold"
         />
         <StatCard
           label="Upcoming"
@@ -298,23 +402,48 @@ const ReservationsPage = () => {
         />
       </motion.div>
 
+      {/* NEXT RESERVATION HIGHLIGHT */}
       {stats.next && (
         <motion.div
-          initial={reduce ? false : { opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="relative mt-6 overflow-hidden rounded-3xl border border-primary/30 bg-gradient-to-br from-primary/20 via-primary/5 to-transparent p-5 sm:p-6"
+          initial={reduce ? false : { opacity: 0, y: 30, filter: "blur(10px)" }}
+          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+          transition={{ duration: 0.9, ease: EASE, delay: 0.15 }}
+          className="relative mt-6 overflow-hidden rounded-3xl border border-[#E0A526]/40 bg-gradient-to-br from-[#E0A526]/20 via-[#E0A526]/5 to-transparent p-5 sm:p-6"
         >
           <div
             aria-hidden
-            className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-primary/25 blur-3xl"
+            className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#E0A526]/70 to-transparent"
+          />
+          <motion.div
+            aria-hidden
+            animate={
+              reduce
+                ? undefined
+                : { opacity: [0.4, 0.8, 0.4], scale: [1, 1.15, 1] }
+            }
+            transition={{
+              duration: 4,
+              ease: "easeInOut",
+              repeat: Infinity,
+            }}
+            className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-[#E0A526]/25 blur-3xl"
           />
           <div className="relative flex flex-wrap items-center gap-4">
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary text-[#2B1B10] shadow-lg">
+            <motion.span
+              initial={reduce ? false : { scale: 0, rotate: -45 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{
+                type: "spring",
+                stiffness: 220,
+                damping: 20,
+                delay: 0.3,
+              }}
+              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#E0A526] to-[#C78E1E] text-[#3B2416] shadow-[0_0_30px_rgba(224,165,38,0.5)]"
+            >
               <Sparkles className="h-6 w-6" />
-            </span>
+            </motion.span>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold uppercase tracking-widest text-primary">
+              <p className="text-xs font-semibold uppercase tracking-widest text-[#E0A526]">
                 Your next reservation
               </p>
               <p className="mt-1 font-heading text-xl font-bold text-foreground">
@@ -327,30 +456,44 @@ const ReservationsPage = () => {
                 {stats.next.table ? ` · Table ${stats.next.table}` : ""}
               </p>
             </div>
-            <button
+            <motion.button
               type="button"
               onClick={() => setExpandedId(stats.next!.id)}
-              className="inline-flex h-10 items-center gap-2 rounded-2xl border border-primary/40 bg-background/60 px-4 text-sm font-semibold text-foreground transition-colors hover:bg-secondary"
+              whileHover={reduce ? undefined : { scale: 1.03 }}
+              whileTap={reduce ? undefined : { scale: 0.97 }}
+              transition={{ duration: 0.25, ease: EASE }}
+              className="inline-flex h-10 items-center gap-2 rounded-2xl border border-[#E0A526]/40 bg-background/60 px-4 text-sm font-semibold text-foreground transition-colors hover:border-[#E0A526]/70 hover:bg-[#E0A526]/5"
             >
               View details
-            </button>
+            </motion.button>
           </div>
         </motion.div>
       )}
 
-      {error && (
-        <div className="mt-6 flex items-start gap-3 rounded-2xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          {error}
-        </div>
-      )}
+      {/* FETCH ERROR */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, filter: "blur(6px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            exit={{ opacity: 0, y: -10, filter: "blur(6px)" }}
+            transition={{ duration: 0.4, ease: EASE }}
+            className="mt-6 flex items-start gap-3 rounded-2xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+          >
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            {error}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
+      {/* CANCEL ERROR */}
       <AnimatePresence>
         {cancelError && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3, ease: EASE }}
             className="mt-6 overflow-hidden"
           >
             <div className="flex items-start gap-3 rounded-2xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
@@ -369,26 +512,38 @@ const ReservationsPage = () => {
         )}
       </AnimatePresence>
 
+      {/* RESERVATIONS PANEL */}
       <motion.div
-        initial={reduce ? false : { opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.15 }}
-        className="mt-6 rounded-3xl border border-border bg-card/70 backdrop-blur-xl"
+        initial={reduce ? false : { opacity: 0, y: 30, filter: "blur(10px)" }}
+        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+        transition={{ duration: 0.9, ease: EASE, delay: 0.2 }}
+        className="relative mt-6 overflow-hidden rounded-3xl border border-border bg-card/70 backdrop-blur-xl"
       >
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-border/70 p-3 sm:p-4">
+        {/* Top shine line */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#E0A526]/60 to-transparent"
+        />
+
+        {/* FILTER TABS */}
+        <div className="relative flex flex-wrap items-center gap-1.5 border-b border-border/70 p-3 sm:p-4">
           {FILTERS.map((tab) => {
             const active = filter === tab;
             const count = countBy(tab);
             return (
-              <button
+              <motion.button
                 key={tab}
                 type="button"
                 onClick={() => setFilter(tab)}
+                whileHover={!active ? { y: -2 } : undefined}
+                whileTap={{ scale: 0.96 }}
+                transition={{ duration: 0.2, ease: EASE }}
                 className={cn(
                   "relative inline-flex h-9 items-center gap-2 rounded-full px-3.5 text-sm font-medium transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   active
-                    ? "text-[#2B1B10]"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    ? "text-[#3B2416]"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
                 )}
               >
                 {active && (
@@ -399,7 +554,7 @@ const ReservationsPage = () => {
                         ? { duration: 0 }
                         : { type: "spring", stiffness: 520, damping: 38 }
                     }
-                    className="absolute inset-0 rounded-full bg-primary"
+                    className="absolute inset-0 rounded-full bg-gradient-to-br from-[#E0A526] to-[#C78E1E] shadow-[0_8px_20px_-8px_rgba(224,165,38,0.6)]"
                   />
                 )}
                 <span className="relative flex items-center gap-1.5">
@@ -408,14 +563,14 @@ const ReservationsPage = () => {
                     className={cn(
                       "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold tabular-nums",
                       active
-                        ? "bg-[#2B1B10]/15 text-[#2B1B10]"
-                        : "bg-foreground/10 text-muted-foreground"
+                        ? "bg-black/15 text-[#3B2416]"
+                        : "bg-foreground/10 text-muted-foreground",
                     )}
                   >
                     {count}
                   </span>
                 </span>
-              </button>
+              </motion.button>
             );
           })}
         </div>
@@ -424,11 +579,13 @@ const ReservationsPage = () => {
           <EmptyState
             title="No reservations yet"
             hint="When you book a table, it will show up here."
+            reduce={reduce}
           />
         ) : filtered.length === 0 ? (
           <EmptyState
             title={`No ${filter.toLowerCase()} reservations`}
             hint="Try a different filter to see more."
+            reduce={reduce}
           />
         ) : (
           <div className="divide-y divide-border/70">
@@ -496,6 +653,10 @@ const ReservationsPage = () => {
   );
 };
 
+/* ------------------------------------------------------------------ */
+/*  Sub-components                                                     */
+/* ------------------------------------------------------------------ */
+
 const StatCard = ({
   label,
   value,
@@ -505,13 +666,13 @@ const StatCard = ({
   label: string;
   value: string;
   icon: React.ComponentType<{ className?: string }>;
-  tone: "primary" | "emerald" | "sky";
+  tone: "gold" | "emerald" | "sky";
 }) => {
   const toneClasses = {
-    primary: {
-      bg: "bg-primary/15",
-      text: "text-primary",
-      glow: "bg-primary/20",
+    gold: {
+      bg: "bg-[#E0A526]/15",
+      text: "text-[#E0A526]",
+      glow: "bg-[#E0A526]/20",
     },
     emerald: {
       bg: "bg-emerald-500/15",
@@ -526,24 +687,38 @@ const StatCard = ({
   }[tone];
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-border bg-card/70 p-5 backdrop-blur-xl">
+    <motion.div
+      variants={cardReveal}
+      whileHover={{ y: -4, transition: { duration: 0.3, ease: EASE } }}
+      className="
+        group relative overflow-hidden rounded-3xl border border-border bg-card/70 p-5 backdrop-blur-xl
+        transition-colors duration-500
+        hover:border-[#E0A526]/40
+      "
+    >
       <div
         aria-hidden
         className={cn(
-          "pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full blur-2xl",
-          toneClasses.glow
+          "pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full blur-2xl transition-all duration-700 group-hover:scale-125",
+          toneClasses.glow,
         )}
       />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-[#E0A526]/40 to-transparent"
+      />
       <div className="relative flex items-center gap-3">
-        <span
+        <motion.span
+          whileHover={{ rotate: -6, scale: 1.08 }}
+          transition={{ duration: 0.35, ease: EASE }}
           className={cn(
             "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl",
             toneClasses.bg,
-            toneClasses.text
+            toneClasses.text,
           )}
         >
           <Icon className="h-5 w-5" />
-        </span>
+        </motion.span>
         <div className="min-w-0">
           <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
             {label}
@@ -553,7 +728,7 @@ const StatCard = ({
           </p>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
@@ -567,37 +742,87 @@ const SectionHeader = ({
   icon: React.ComponentType<{ className?: string }>;
 }) => (
   <div className="flex items-center gap-3">
-    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary">
+    <motion.span
+      initial={{ scale: 0, rotate: -45 }}
+      animate={{ scale: 1, rotate: 0 }}
+      transition={{ type: "spring", stiffness: 260, damping: 20 }}
+      className="flex h-8 w-8 items-center justify-center rounded-full bg-[#E0A526]/15 text-[#E0A526]"
+    >
       <Icon className="h-4 w-4" />
-    </span>
+    </motion.span>
     <h2 className="font-heading text-sm font-semibold uppercase tracking-widest text-muted-foreground">
       {title}
     </h2>
     <span className="text-xs text-muted-foreground">
       · {count} reservation{count === 1 ? "" : "s"}
     </span>
-    <span className="h-px flex-1 bg-border" />
+    <span className="h-px flex-1 bg-gradient-to-r from-border to-transparent" />
   </div>
 );
 
-const EmptyState = ({ title, hint }: { title: string; hint: string }) => (
-  <div className="flex flex-col items-center justify-center gap-4 px-6 py-16 text-center">
-    <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/15 text-primary">
+const EmptyState = ({
+  title,
+  hint,
+  reduce,
+}: {
+  title: string;
+  hint: string;
+  reduce: boolean | null;
+}) => (
+  <motion.div
+    initial={reduce ? false : { opacity: 0, y: 20, filter: "blur(8px)" }}
+    animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+    transition={{ duration: 0.7, ease: EASE }}
+    className="relative flex flex-col items-center justify-center gap-4 px-6 py-16 text-center"
+  >
+    <div
+      aria-hidden
+      className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-[#E0A526]/15 blur-3xl"
+    />
+    <motion.span
+      initial={reduce ? false : { scale: 0, rotate: -45 }}
+      animate={{ scale: 1, rotate: 0 }}
+      transition={{
+        type: "spring",
+        stiffness: 220,
+        damping: 20,
+        delay: 0.2,
+      }}
+      className="relative flex h-16 w-16 items-center justify-center rounded-full bg-[#E0A526]/15 text-[#E0A526] shadow-[0_0_30px_rgba(224,165,38,0.3)]"
+    >
       <CalendarCheck className="h-7 w-7" />
-    </span>
-    <div>
+    </motion.span>
+    <div className="relative">
       <p className="font-heading text-xl font-semibold text-foreground">
         {title}
       </p>
       <p className="mt-1 max-w-sm text-sm text-muted-foreground">{hint}</p>
     </div>
-    <Link
-      href="/reservations"
-      className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary px-5 text-sm font-semibold text-[#2B1B10] transition-all hover:bg-primary/90 hover:shadow-md"
+    <motion.div
+      initial={reduce ? false : { opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, ease: EASE, delay: 0.4 }}
+      whileHover={reduce ? undefined : { scale: 1.03 }}
+      whileTap={reduce ? undefined : { scale: 0.97 }}
     >
-      Book a table
-    </Link>
-  </div>
+      <Link
+        href="/reservations"
+        className="
+          group/btn relative inline-flex h-11 items-center gap-2 overflow-hidden rounded-2xl
+          bg-gradient-to-br from-[#E0A526] to-[#C78E1E] px-5 text-sm font-semibold text-[#3B2416]
+          shadow-[0_10px_28px_-10px_rgba(224,165,38,0.6)]
+          transition-shadow duration-300
+          hover:shadow-[0_14px_32px_-10px_rgba(224,165,38,0.75)]
+        "
+      >
+        <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-1000 ease-out group-hover/btn:translate-x-full" />
+        <span className="relative flex items-center gap-2">
+          <Calendar className="h-4 w-4" />
+          Book a table
+        </span>
+      </Link>
+    </motion.div>
+  </motion.div>
 );
 
 const ReservationRow = ({
@@ -625,27 +850,42 @@ const ReservationRow = ({
 
   return (
     <motion.li
-      initial={reduce ? false : { opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, delay: index * 0.02 }}
+      layout={!reduce}
+      initial={reduce ? false : { opacity: 0, y: 24, filter: "blur(6px)" }}
+      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      transition={{
+        duration: 0.5,
+        delay: reduce ? 0 : Math.min(index * 0.04, 0.3),
+        ease: EASE,
+      }}
       className={cn(
-        "group overflow-hidden rounded-2xl border bg-background/40 transition-colors",
+        "group relative overflow-hidden rounded-2xl border bg-background/40 transition-colors duration-500",
         cancelled
           ? "border-border/60 opacity-75"
-          : "border-border/70 hover:border-primary/40"
+          : "border-border/70 hover:border-[#E0A526]/40 hover:bg-[#E0A526]/[0.03]",
       )}
     >
-      <button
+      {/* Hover gold glow */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-[#E0A526]/0 blur-2xl transition-all duration-500 group-hover:bg-[#E0A526]/20"
+      />
+
+      <motion.button
         type="button"
         onClick={onToggle}
         aria-expanded={expanded}
-        className="flex w-full flex-wrap items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-foreground/[0.03]"
+        whileHover={reduce ? undefined : { y: -2 }}
+        transition={{ duration: 0.25, ease: EASE }}
+        className="relative flex w-full flex-wrap items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-foreground/[0.03]"
       >
-        <div className="flex min-w-0 items-center gap-4">
-          <div
+        <div className="relative flex min-w-0 items-center gap-4">
+          <motion.div
+            whileHover={reduce ? undefined : { rotate: -4, scale: 1.06 }}
+            transition={{ duration: 0.35, ease: EASE }}
             className={cn(
               "flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-2xl border",
-              style.chip
+              style.chip,
             )}
           >
             <span className="text-[10px] font-semibold uppercase tracking-wider">
@@ -656,7 +896,7 @@ const ReservationRow = ({
             <span className="font-heading text-xl font-bold leading-none">
               {new Date(reservation.date).getDate()}
             </span>
-          </div>
+          </motion.div>
 
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -666,7 +906,7 @@ const ReservationRow = ({
               <span
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                  style.chip
+                  style.chip,
                 )}
               >
                 <StatusIcon className="h-3 w-3" />
@@ -702,10 +942,10 @@ const ReservationRow = ({
         <ChevronDown
           className={cn(
             "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300",
-            expanded && "rotate-180"
+            expanded && "rotate-180",
           )}
         />
-      </button>
+      </motion.button>
 
       <AnimatePresence initial={false}>
         {expanded && (
@@ -713,87 +953,72 @@ const ReservationRow = ({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.22, ease: "easeOut" }}
+            transition={{ duration: 0.32, ease: EASE }}
             className="overflow-hidden border-t border-border/60 bg-foreground/[0.02]"
           >
             <div className="grid gap-5 p-4 sm:grid-cols-2 sm:p-5">
               <div>
-                <h4 className="mb-2.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                <h4 className="mb-2.5 text-[10px] font-semibold uppercase tracking-widest text-[#E0A526]">
                   Guest
                 </h4>
                 <dl className="space-y-2 text-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <dt className="text-muted-foreground">Name</dt>
-                    <dd className="truncate font-medium text-foreground">
-                      {reservation.name}
-                    </dd>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <dt className="text-muted-foreground">Email</dt>
-                    <dd className="truncate font-medium text-foreground">
-                      {reservation.email}
-                    </dd>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <dt className="text-muted-foreground">Phone</dt>
-                    <dd className="inline-flex items-center gap-1.5 font-medium text-foreground">
-                      <Phone className="h-3 w-3" />
-                      {reservation.phone}
-                    </dd>
-                  </div>
+                  <DetailRow label="Name" value={reservation.name} />
+                  <DetailRow label="Email" value={reservation.email} />
+                  <DetailRow
+                    label="Phone"
+                    value={reservation.phone}
+                    icon={<Phone className="h-3 w-3" />}
+                  />
                 </dl>
               </div>
 
               <div>
-                <h4 className="mb-2.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                <h4 className="mb-2.5 text-[10px] font-semibold uppercase tracking-widest text-[#E0A526]">
                   Details
                 </h4>
                 <dl className="space-y-2 text-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <dt className="text-muted-foreground">Date</dt>
-                    <dd className="font-medium text-foreground">
-                      {formatDate(reservation.date)}
-                    </dd>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <dt className="text-muted-foreground">Time</dt>
-                    <dd className="font-medium text-foreground">
-                      {reservation.time}
-                    </dd>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <dt className="text-muted-foreground">Guests</dt>
-                    <dd className="font-medium text-foreground">
-                      {reservation.guests}
-                    </dd>
-                  </div>
+                  <DetailRow
+                    label="Date"
+                    value={formatDate(reservation.date)}
+                  />
+                  <DetailRow label="Time" value={reservation.time} />
+                  <DetailRow
+                    label="Guests"
+                    value={String(reservation.guests)}
+                  />
                   {reservation.table && (
-                    <div className="flex items-center justify-between gap-3">
-                      <dt className="text-muted-foreground">Table</dt>
-                      <dd className="font-medium text-foreground">
-                        {reservation.table}
-                      </dd>
-                    </div>
+                    <DetailRow
+                      label="Table"
+                      value={String(reservation.table)}
+                    />
                   )}
                 </dl>
               </div>
             </div>
 
             {reservation.notes && (
-              <div className="px-4 pb-4 sm:px-5">
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, ease: EASE, delay: 0.1 }}
+                className="px-4 pb-4 sm:px-5"
+              >
                 <div className="rounded-xl border border-border/60 bg-background/60 px-3 py-2.5 text-xs text-muted-foreground">
                   <span className="font-semibold text-foreground">Notes: </span>
                   {reservation.notes}
                 </div>
-              </div>
+              </motion.div>
             )}
 
             {canCancel && (
               <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 px-4 py-3 sm:px-5">
-                <button
+                <motion.button
                   type="button"
                   onClick={onCancel}
                   disabled={busy}
+                  whileHover={reduce ? undefined : { scale: 1.03 }}
+                  whileTap={reduce ? undefined : { scale: 0.97 }}
+                  transition={{ duration: 0.25, ease: EASE }}
                   className="inline-flex h-9 items-center gap-2 rounded-2xl border border-destructive/40 px-4 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {busy ? (
@@ -807,7 +1032,7 @@ const ReservationRow = ({
                       Cancel reservation
                     </>
                   )}
-                </button>
+                </motion.button>
               </div>
             )}
           </motion.div>
@@ -816,5 +1041,28 @@ const ReservationRow = ({
     </motion.li>
   );
 };
+
+const DetailRow = ({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: string;
+  icon?: React.ReactNode;
+}) => (
+  <motion.div
+    initial={{ opacity: 0, x: -6 }}
+    animate={{ opacity: 1, x: 0 }}
+    transition={{ duration: 0.4, ease: EASE }}
+    className="flex items-center justify-between gap-3"
+  >
+    <dt className="text-muted-foreground">{label}</dt>
+    <dd className="inline-flex items-center gap-1.5 truncate font-medium text-foreground">
+      {icon}
+      {value}
+    </dd>
+  </motion.div>
+);
 
 export default ReservationsPage;

@@ -4,7 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import axios from "axios";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import {
+  AnimatePresence,
+  motion,
+  useReducedMotion,
+  type Variants,
+} from "framer-motion";
 import {
   AlertCircle,
   ArrowRight,
@@ -31,6 +36,37 @@ const API_URL = (
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 ).replace(/\/+$/, "");
 
+const EASE = [0.22, 1, 0.36, 1] as const;
+
+const headerContainer: Variants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1, delayChildren: 0.05 },
+  },
+};
+
+const headerItem: Variants = {
+  hidden: { opacity: 0, y: 30, filter: "blur(8px)" },
+  show: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: { duration: 0.85, ease: EASE },
+  },
+};
+
+const cardReveal: Variants = {
+  hidden: { opacity: 0, y: 40, scale: 0.96, filter: "blur(8px)" },
+  show: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    filter: "blur(0px)",
+    transition: { duration: 0.7, ease: EASE },
+  },
+};
+
 type FilterTab = "All" | OrderStatus;
 
 const FILTERS: FilterTab[] = [
@@ -56,8 +92,8 @@ const STATUS_STYLES: Record<
     icon: Clock,
   },
   Preparing: {
-    chip: "bg-primary/15 text-primary border-primary/30",
-    dot: "bg-primary",
+    chip: "bg-[#E0A526]/15 text-[#E0A526] border-[#E0A526]/30",
+    dot: "bg-[#E0A526]",
     icon: ChefHat,
   },
   "Out for delivery": {
@@ -206,128 +242,168 @@ const Orders = () => {
   if (loading) {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-5xl items-center justify-center px-4">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, ease: EASE }}
+          className="relative"
+        >
+          <motion.span
+            aria-hidden
+            animate={{ scale: [1, 1.6, 1.6], opacity: [0.5, 0, 0] }}
+            transition={{ duration: 2, ease: "easeOut", repeat: Infinity }}
+            className="absolute inset-0 rounded-full border border-[#E0A526]"
+          />
+          <Loader2 className="h-8 w-8 animate-spin text-[#E0A526]" />
+        </motion.div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+    <div className="relative mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+      {/* Ambient gold glows */}
+      <motion.div
+        aria-hidden
+        animate={
+          reduce ? undefined : { opacity: [0.4, 0.8, 0.4], scale: [1, 1.1, 1] }
+        }
+        transition={{ duration: 5, ease: "easeInOut", repeat: Infinity }}
+        className="pointer-events-none absolute -top-32 left-1/4 h-72 w-72 rounded-full bg-[#E0A526]/12 blur-[100px]"
+      />
+      <motion.div
+        aria-hidden
+        animate={
+          reduce ? undefined : { opacity: [0.3, 0.7, 0.3], scale: [1, 1.12, 1] }
+        }
+        transition={{
+          duration: 6,
+          ease: "easeInOut",
+          repeat: Infinity,
+          delay: 0.5,
+        }}
+        className="pointer-events-none absolute bottom-0 right-1/4 h-80 w-80 rounded-full bg-[#C78E1E]/12 blur-[120px]"
+      />
+
+      {/* HEADER */}
       <motion.header
-        initial={reduce ? false : { opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="flex flex-wrap items-end justify-between gap-6"
+        variants={headerContainer}
+        initial={reduce ? false : "hidden"}
+        animate="show"
+        className="relative flex flex-wrap items-end justify-between gap-6"
       >
         <div>
-          <p className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+          <motion.p
+            variants={headerItem}
+            className="inline-flex items-center gap-2 rounded-full border border-[#E0A526]/30 bg-[#E0A526]/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#E0A526]"
+          >
             <Package className="h-3.5 w-3.5" />
             My orders
-          </p>
-          <h1 className="mt-4 font-heading text-4xl font-bold leading-tight text-foreground sm:text-5xl">
-            Your order history
-          </h1>
-          <p className="mt-2 max-w-2xl text-base text-muted-foreground">
+          </motion.p>
+          <motion.h1
+            variants={headerItem}
+            className="mt-4 font-heading text-4xl font-bold leading-tight text-foreground sm:text-5xl"
+          >
+            Your order{" "}
+            <span className="relative inline-block text-[#E0A526]">
+              history
+              <motion.span
+                aria-hidden
+                initial={reduce ? false : { scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 1, ease: EASE, delay: 0.5 }}
+                style={{ transformOrigin: "left" }}
+                className="absolute -bottom-1 left-0 h-[3px] w-full rounded-full bg-gradient-to-r from-[#E0A526] to-[#C78E1E]"
+              />
+            </span>
+          </motion.h1>
+          <motion.p
+            variants={headerItem}
+            className="mt-3 max-w-2xl text-base text-muted-foreground"
+          >
             Follow live orders from the kitchen to your door, or reorder a
             favourite in one tap.
-          </p>
+          </motion.p>
         </div>
 
-        <Link
-          href="/menu"
-          className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary px-5 text-sm font-semibold text-[#2B1B10] transition-all hover:bg-primary/90 hover:shadow-md"
-        >
-          <ShoppingBag className="h-4 w-4" />
-          Browse menu
-        </Link>
+        <motion.div variants={headerItem}>
+          <Link
+            href="/menu"
+            className="
+              group/btn relative inline-flex h-11 items-center gap-2 overflow-hidden rounded-2xl
+              bg-gradient-to-br from-[#E0A526] to-[#C78E1E] px-5 text-sm font-semibold text-[#3B2416]
+              shadow-[0_10px_28px_-10px_rgba(224,165,38,0.6)]
+              transition-shadow duration-300
+              hover:shadow-[0_14px_32px_-10px_rgba(224,165,38,0.75)]
+            "
+          >
+            <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-1000 ease-out group-hover/btn:translate-x-full" />
+            <span className="relative flex items-center gap-2">
+              <ShoppingBag className="h-4 w-4" />
+              Browse menu
+            </span>
+          </Link>
+        </motion.div>
       </motion.header>
 
+      {/* STATS */}
       <motion.div
-        initial={reduce ? false : { opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.05 }}
+        variants={headerContainer}
+        initial={reduce ? false : "hidden"}
+        animate="show"
         className="mt-8 grid gap-4 sm:grid-cols-3"
       >
-        <div className="relative overflow-hidden rounded-3xl border border-border bg-card/70 p-5 backdrop-blur-xl">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-primary/20 blur-2xl"
-          />
-          <div className="relative flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/15 text-primary">
-              <Clock className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-                Active
-              </p>
-              <p className="font-heading text-2xl font-bold tabular-nums text-foreground">
-                {totals.active}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="relative overflow-hidden rounded-3xl border border-border bg-card/70 p-5 backdrop-blur-xl">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-emerald-500/20 blur-2xl"
-          />
-          <div className="relative flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-500">
-              <Check className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-                Delivered
-              </p>
-              <p className="font-heading text-2xl font-bold tabular-nums text-foreground">
-                {totals.delivered}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="relative overflow-hidden rounded-3xl border border-border bg-card/70 p-5 backdrop-blur-xl">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-amber-500/20 blur-2xl"
-          />
-          <div className="relative flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-500">
-              <Receipt className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-                Lifetime spend
-              </p>
-              <p className="font-heading text-2xl font-bold tabular-nums text-foreground">
-                {totalSpentFormatted}
-              </p>
-            </div>
-          </div>
-        </div>
+        <StatCard
+          icon={<Clock className="h-5 w-5" />}
+          label="Active"
+          value={String(totals.active)}
+          tone="gold"
+        />
+        <StatCard
+          icon={<Check className="h-5 w-5" />}
+          label="Delivered"
+          value={String(totals.delivered)}
+          tone="emerald"
+        />
+        <StatCard
+          icon={<Receipt className="h-5 w-5" />}
+          label="Lifetime spend"
+          value={totalSpentFormatted}
+          tone="amber"
+        />
       </motion.div>
 
+      {/* ORDERS PANEL */}
       <motion.div
-        initial={reduce ? false : { opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.1 }}
-        className="mt-6 rounded-3xl border border-border bg-card/70 backdrop-blur-xl"
+        initial={reduce ? false : { opacity: 0, y: 30, filter: "blur(10px)" }}
+        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+        transition={{ duration: 0.9, ease: EASE, delay: 0.2 }}
+        className="relative mt-6 overflow-hidden rounded-3xl border border-border bg-card/70 backdrop-blur-xl"
       >
-        <div className="flex flex-wrap items-center gap-2 border-b border-border/70 p-3 sm:gap-1.5 sm:p-4">
+        {/* Top shine line */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#E0A526]/60 to-transparent"
+        />
+
+        {/* FILTER TABS */}
+        <div className="relative flex flex-wrap items-center gap-2 border-b border-border/70 p-3 sm:gap-1.5 sm:p-4">
           {FILTERS.map((tab) => {
             const active = filter === tab;
             const count = countBy(orders, tab);
             return (
-              <button
+              <motion.button
                 key={tab}
                 type="button"
                 onClick={() => setFilter(tab)}
+                whileHover={!active ? { y: -2 } : undefined}
+                whileTap={{ scale: 0.96 }}
+                transition={{ duration: 0.2, ease: EASE }}
                 className={cn(
                   "relative inline-flex h-9 items-center gap-2 rounded-full px-3.5 text-sm font-medium transition-colors sm:px-4",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   active
-                    ? "text-[#2B1B10]"
+                    ? "text-[#3B2416]"
                     : "text-muted-foreground hover:bg-secondary hover:text-foreground",
                 )}
               >
@@ -339,7 +415,7 @@ const Orders = () => {
                         ? { duration: 0 }
                         : { type: "spring", stiffness: 520, damping: 38 }
                     }
-                    className="absolute inset-0 rounded-full bg-primary"
+                    className="absolute inset-0 rounded-full bg-gradient-to-br from-[#E0A526] to-[#C78E1E] shadow-[0_8px_20px_-8px_rgba(224,165,38,0.6)]"
                   />
                 )}
                 <span className="relative flex items-center gap-1.5">
@@ -348,24 +424,26 @@ const Orders = () => {
                     className={cn(
                       "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold tabular-nums",
                       active
-                        ? "bg-[#2B1B10]/15 text-[#2B1B10]"
+                        ? "bg-black/15 text-[#3B2416]"
                         : "bg-foreground/10 text-muted-foreground",
                     )}
                   >
                     {count}
                   </span>
                 </span>
-              </button>
+              </motion.button>
             );
           })}
         </div>
 
+        {/* ERROR BANNER (cancel) */}
         <AnimatePresence>
           {cancelError && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3, ease: EASE }}
               className="overflow-hidden border-b border-destructive/30"
             >
               <div className="flex items-center gap-2 bg-destructive/5 px-4 py-3 text-sm text-destructive">
@@ -376,6 +454,7 @@ const Orders = () => {
           )}
         </AnimatePresence>
 
+        {/* ERROR BANNER (fetch) */}
         {error && (
           <div className="flex items-center gap-2 border-b border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
             <AlertCircle className="h-4 w-4 shrink-0" />
@@ -384,11 +463,32 @@ const Orders = () => {
         )}
 
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-4 px-6 py-16 text-center">
-            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/15 text-primary">
+          <motion.div
+            initial={
+              reduce ? false : { opacity: 0, y: 20, filter: "blur(8px)" }
+            }
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            transition={{ duration: 0.7, ease: EASE }}
+            className="relative flex flex-col items-center justify-center gap-4 px-6 py-16 text-center"
+          >
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-[#E0A526]/15 blur-3xl"
+            />
+            <motion.span
+              initial={reduce ? false : { scale: 0, rotate: -45 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{
+                type: "spring",
+                stiffness: 220,
+                damping: 20,
+                delay: 0.2,
+              }}
+              className="relative flex h-16 w-16 items-center justify-center rounded-full bg-[#E0A526]/15 text-[#E0A526] shadow-[0_0_30px_rgba(224,165,38,0.3)]"
+            >
               <ShoppingBag className="h-7 w-7" />
-            </span>
-            <div>
+            </motion.span>
+            <div className="relative">
               <p className="font-heading text-xl font-semibold text-foreground">
                 {orders.length === 0
                   ? "No orders yet"
@@ -401,216 +501,272 @@ const Orders = () => {
               </p>
             </div>
             {orders.length === 0 && (
-              <Link
-                href="/menu"
-                className="inline-flex h-11 items-center gap-2 rounded-2xl bg-primary px-5 text-sm font-semibold text-[#2B1B10] transition-all hover:bg-primary/90 hover:shadow-md"
+              <motion.div
+                initial={reduce ? false : { opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, ease: EASE, delay: 0.5 }}
+                whileHover={reduce ? undefined : { scale: 1.03 }}
+                whileTap={reduce ? undefined : { scale: 0.97 }}
               >
-                <ArrowRight className="h-4 w-4" />
-                Explore the menu
-              </Link>
-            )}
-          </div>
-        ) : (
-          <ul className="divide-y divide-border/70">
-            {filtered.map((order, i) => {
-              const style = STATUS_STYLES[order.status];
-              const StatusIcon = style.icon;
-              const ChannelIcon = CHANNEL_ICON[order.channel] ?? Package;
-              const expanded = expandedId === order.id;
-              const itemCount = order.items?.length ?? 0;
-              const busy = busyId === order.id;
-
-              return (
-                <motion.li
-                  key={order.id}
-                  initial={reduce ? false : { opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: i * 0.03 }}
-                  className="group"
+                <Link
+                  href="/menu"
+                  className="
+                    group/btn relative inline-flex h-11 items-center gap-2 overflow-hidden rounded-2xl
+                    bg-gradient-to-br from-[#E0A526] to-[#C78E1E] px-5 text-sm font-semibold text-[#3B2416]
+                    shadow-[0_10px_28px_-10px_rgba(224,165,38,0.6)]
+                    transition-shadow duration-300
+                    hover:shadow-[0_14px_32px_-10px_rgba(224,165,38,0.75)]
+                  "
                 >
-                  <button
-                    type="button"
-                    onClick={() => setExpandedId(expanded ? null : order.id)}
-                    aria-expanded={expanded}
-                    className="flex w-full flex-wrap items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-foreground/[0.02] sm:px-6"
+                  <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-1000 ease-out group-hover/btn:translate-x-full" />
+                  <span className="relative flex items-center gap-2">
+                    <ArrowRight className="h-4 w-4" />
+                    Explore the menu
+                  </span>
+                </Link>
+              </motion.div>
+            )}
+          </motion.div>
+        ) : (
+          <ul className="relative divide-y divide-border/70">
+            <AnimatePresence initial={false}>
+              {filtered.map((order, i) => {
+                const style = STATUS_STYLES[order.status];
+                const StatusIcon = style.icon;
+                const ChannelIcon = CHANNEL_ICON[order.channel] ?? Package;
+                const expanded = expandedId === order.id;
+                const itemCount = order.items?.length ?? 0;
+                const busy = busyId === order.id;
+
+                return (
+                  <motion.li
+                    key={order.id}
+                    layout={!reduce}
+                    variants={cardReveal}
+                    initial={reduce ? false : "hidden"}
+                    animate="show"
+                    exit={
+                      reduce
+                        ? { opacity: 0 }
+                        : {
+                            opacity: 0,
+                            y: -10,
+                            scale: 0.98,
+                            filter: "blur(6px)",
+                          }
+                    }
+                    transition={{
+                      duration: reduce ? 0 : 0.6,
+                      delay: reduce ? 0 : Math.min(i * 0.03, 0.3),
+                      ease: EASE,
+                    }}
+                    className="group relative"
                   >
-                    <div className="flex min-w-0 items-center gap-4">
+                    <motion.button
+                      type="button"
+                      onClick={() => setExpandedId(expanded ? null : order.id)}
+                      aria-expanded={expanded}
+                      whileHover={reduce ? undefined : { y: -2 }}
+                      transition={{ duration: 0.25, ease: EASE }}
+                      className="flex w-full flex-wrap items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-foreground/[0.02] sm:px-6"
+                    >
+                      {/* Hover gold glow */}
                       <span
-                        className={cn(
-                          "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border",
-                          style.chip,
-                        )}
-                      >
-                        <StatusIcon className="h-5 w-5" />
-                      </span>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="truncate font-heading text-base font-semibold text-foreground">
-                            {order.id}
-                          </p>
-                          <span
-                            className={cn(
-                              "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                              style.chip,
-                            )}
-                          >
+                        aria-hidden
+                        className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-[#E0A526]/0 blur-2xl transition-all duration-500 group-hover:bg-[#E0A526]/20"
+                      />
+
+                      <div className="relative flex min-w-0 items-center gap-4">
+                        <motion.span
+                          whileHover={
+                            reduce ? undefined : { rotate: -6, scale: 1.08 }
+                          }
+                          transition={{ duration: 0.35, ease: EASE }}
+                          className={cn(
+                            "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border",
+                            style.chip,
+                          )}
+                        >
+                          <StatusIcon className="h-5 w-5" />
+                        </motion.span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="truncate font-heading text-base font-semibold text-foreground">
+                              {order.id}
+                            </p>
                             <span
                               className={cn(
-                                "h-1.5 w-1.5 rounded-full",
-                                style.dot,
+                                "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                                style.chip,
                               )}
-                            />
-                            {order.status}
-                          </span>
-                        </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                          <span className="inline-flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {order.time}
-                          </span>
-                          <span className="inline-flex items-center gap-1">
-                            <ChannelIcon className="h-3 w-3" />
-                            {order.channel}
-                          </span>
-                          <span className="inline-flex items-center gap-1">
-                            <Package className="h-3 w-3" />
-                            {itemCount} item{itemCount === 1 ? "" : "s"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <p className="font-heading text-lg font-bold tabular-nums text-foreground">
-                          {money(order.total)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {order.payment}
-                        </p>
-                      </div>
-                      <ChevronDown
-                        className={cn(
-                          "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300",
-                          expanded && "rotate-180",
-                        )}
-                      />
-                    </div>
-                  </button>
-
-                  <AnimatePresence initial={false}>
-                    {expanded && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.25, ease: "easeOut" }}
-                        className="overflow-hidden border-t border-border/60 bg-foreground/[0.02]"
-                      >
-                        <div className="grid gap-6 p-5 sm:grid-cols-2 sm:p-6">
-                          <div>
-                            <h4 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                              Items
-                            </h4>
-                            <ul className="space-y-2">
-                              {order.items?.map((item, idx) => (
-                                <li
-                                  key={`${item}-${idx}`}
-                                  className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/60 px-3 py-2 text-sm"
-                                >
-                                  <span className="truncate text-foreground">
-                                    {item}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
+                            >
+                              <span
+                                className={cn(
+                                  "h-1.5 w-1.5 rounded-full",
+                                  style.dot,
+                                )}
+                              />
+                              {order.status}
+                            </span>
                           </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                            <span className="inline-flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {order.time}
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <ChannelIcon className="h-3 w-3" />
+                              {order.channel}
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <Package className="h-3 w-3" />
+                              {itemCount} item{itemCount === 1 ? "" : "s"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
 
-                          <div>
-                            <h4 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                              Details
-                            </h4>
-                            <dl className="space-y-2.5 text-sm">
-                              <div className="flex items-center justify-between gap-3">
-                                <dt className="text-muted-foreground">
-                                  Channel
-                                </dt>
-                                <dd className="font-medium text-foreground">
-                                  {order.channel}
-                                </dd>
-                              </div>
-                              {order.table && (
-                                <div className="flex items-center justify-between gap-3">
-                                  <dt className="text-muted-foreground">
-                                    Table
+                      <div className="relative flex items-center gap-3">
+                        <div className="text-right">
+                          <p className="font-heading text-lg font-bold tabular-nums text-[#E0A526]">
+                            {money(order.total)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {order.payment}
+                          </p>
+                        </div>
+                        <ChevronDown
+                          className={cn(
+                            "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300",
+                            expanded && "rotate-180",
+                          )}
+                        />
+                      </div>
+                    </motion.button>
+
+                    <AnimatePresence initial={false}>
+                      {expanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.35, ease: EASE }}
+                          className="overflow-hidden border-t border-border/60 bg-foreground/[0.02]"
+                        >
+                          <div className="grid gap-6 p-5 sm:grid-cols-2 sm:p-6">
+                            <div>
+                              <h4 className="mb-3 text-xs font-semibold uppercase tracking-widest text-[#E0A526]">
+                                Items
+                              </h4>
+                              <ul className="space-y-2">
+                                {order.items?.map((item, idx) => (
+                                  <motion.li
+                                    key={`${item}-${idx}`}
+                                    initial={
+                                      reduce ? false : { opacity: 0, x: -8 }
+                                    }
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{
+                                      duration: 0.4,
+                                      ease: EASE,
+                                      delay: reduce ? 0 : idx * 0.04,
+                                    }}
+                                    className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/60 px-3 py-2 text-sm transition-colors duration-300 hover:border-[#E0A526]/40"
+                                  >
+                                    <span className="truncate text-foreground">
+                                      {item}
+                                    </span>
+                                  </motion.li>
+                                ))}
+                              </ul>
+                            </div>
+
+                            <div>
+                              <h4 className="mb-3 text-xs font-semibold uppercase tracking-widest text-[#E0A526]">
+                                Details
+                              </h4>
+                              <dl className="space-y-2.5 text-sm">
+                                <DetailRow
+                                  label="Channel"
+                                  value={order.channel}
+                                />
+                                {order.table && (
+                                  <DetailRow
+                                    label="Table"
+                                    value={String(order.table)}
+                                  />
+                                )}
+                                <DetailRow
+                                  label="Payment"
+                                  value={order.payment}
+                                />
+                                <DetailRow label="Time" value={order.time} />
+                                <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-2.5">
+                                  <dt className="font-medium text-foreground">
+                                    Total
                                   </dt>
-                                  <dd className="font-medium text-foreground">
-                                    {order.table}
+                                  <dd className="font-heading text-lg font-bold tabular-nums text-[#E0A526]">
+                                    {money(order.total)}
                                   </dd>
                                 </div>
-                              )}
-                              <div className="flex items-center justify-between gap-3">
-                                <dt className="text-muted-foreground">
-                                  Payment
-                                </dt>
-                                <dd className="font-medium text-foreground">
-                                  {order.payment}
-                                </dd>
-                              </div>
-                              <div className="flex items-center justify-between gap-3">
-                                <dt className="text-muted-foreground">Time</dt>
-                                <dd className="font-medium text-foreground">
-                                  {order.time}
-                                </dd>
-                              </div>
-                              <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-2.5">
-                                <dt className="font-medium text-foreground">
-                                  Total
-                                </dt>
-                                <dd className="font-heading text-lg font-bold tabular-nums text-primary">
-                                  {money(order.total)}
-                                </dd>
-                              </div>
-                            </dl>
+                              </dl>
+                            </div>
                           </div>
-                        </div>
 
-                        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 px-5 py-4 sm:px-6">
-                          {canCancel(order) && (
-                            <button
+                          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 px-5 py-4 sm:px-6">
+                            {canCancel(order) && (
+                              <motion.button
+                                type="button"
+                                onClick={() => handleCancel(order)}
+                                disabled={busy}
+                                whileHover={
+                                  reduce ? undefined : { scale: 1.03 }
+                                }
+                                whileTap={reduce ? undefined : { scale: 0.97 }}
+                                transition={{ duration: 0.25, ease: EASE }}
+                                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-destructive/40 px-4 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {busy ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Cancelling…
+                                  </>
+                                ) : (
+                                  <>
+                                    <X className="h-4 w-4" />
+                                    Cancel order
+                                  </>
+                                )}
+                              </motion.button>
+                            )}
+                            <motion.button
                               type="button"
-                              onClick={() => handleCancel(order)}
-                              disabled={busy}
-                              className="inline-flex h-10 items-center gap-2 rounded-2xl border border-destructive/40 px-4 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-60"
+                              onClick={() => handleReorder(order)}
+                              whileHover={reduce ? undefined : { scale: 1.03 }}
+                              whileTap={reduce ? undefined : { scale: 0.97 }}
+                              transition={{ duration: 0.25, ease: EASE }}
+                              className="
+                                group/btn relative inline-flex h-10 items-center gap-2 overflow-hidden rounded-2xl
+                                bg-gradient-to-br from-[#E0A526] to-[#C78E1E] px-4 text-sm font-semibold text-[#3B2416]
+                                shadow-[0_10px_28px_-10px_rgba(224,165,38,0.6)]
+                                transition-shadow duration-300
+                                hover:shadow-[0_14px_32px_-10px_rgba(224,165,38,0.75)]
+                              "
                             >
-                              {busy ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                  Cancelling…
-                                </>
-                              ) : (
-                                <>
-                                  <X className="h-4 w-4" />
-                                  Cancel order
-                                </>
-                              )}
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleReorder(order)}
-                            className="inline-flex h-10 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-semibold text-[#2B1B10] transition-all hover:bg-primary/90 hover:shadow-md"
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                            Reorder
-                          </button>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.li>
-              );
-            })}
+                              <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-1000 ease-out group-hover/btn:translate-x-full" />
+                              <span className="relative flex items-center gap-2">
+                                <RotateCcw className="h-4 w-4" />
+                                Reorder
+                              </span>
+                            </motion.button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.li>
+                );
+              })}
+            </AnimatePresence>
           </ul>
         )}
       </motion.div>
@@ -621,5 +777,98 @@ const Orders = () => {
     </div>
   );
 };
+
+/* ------------------------------------------------------------------ */
+/*  Sub-components                                                     */
+/* ------------------------------------------------------------------ */
+
+const StatCard = ({
+  icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  tone: "gold" | "emerald" | "amber";
+}) => {
+  const tones = {
+    gold: {
+      bg: "bg-[#E0A526]/15",
+      text: "text-[#E0A526]",
+      glow: "bg-[#E0A526]/20",
+    },
+    emerald: {
+      bg: "bg-emerald-500/15",
+      text: "text-emerald-500",
+      glow: "bg-emerald-500/20",
+    },
+    amber: {
+      bg: "bg-amber-500/15",
+      text: "text-amber-500",
+      glow: "bg-amber-500/20",
+    },
+  } as const;
+
+  const t = tones[tone];
+
+  return (
+    <motion.div
+      variants={cardReveal}
+      whileHover={{ y: -4, transition: { duration: 0.3, ease: EASE } }}
+      className="
+        group relative overflow-hidden rounded-3xl border border-border bg-card/70 p-5 backdrop-blur-xl
+        transition-colors duration-500
+        hover:border-[#E0A526]/40
+      "
+    >
+      <div
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full blur-2xl transition-all duration-700 group-hover:scale-125",
+          t.glow,
+        )}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-[#E0A526]/40 to-transparent"
+      />
+      <div className="relative flex items-center gap-3">
+        <motion.span
+          whileHover={{ rotate: -6, scale: 1.08 }}
+          transition={{ duration: 0.35, ease: EASE }}
+          className={cn(
+            "flex h-11 w-11 items-center justify-center rounded-2xl",
+            t.bg,
+            t.text,
+          )}
+        >
+          {icon}
+        </motion.span>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+            {label}
+          </p>
+          <p className="font-heading text-2xl font-bold tabular-nums text-foreground">
+            {value}
+          </p>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+const DetailRow = ({ label, value }: { label: string; value: string }) => (
+  <motion.div
+    initial={{ opacity: 0, x: -6 }}
+    animate={{ opacity: 1, x: 0 }}
+    transition={{ duration: 0.4, ease: EASE }}
+    className="flex items-center justify-between gap-3"
+  >
+    <dt className="text-muted-foreground">{label}</dt>
+    <dd className="font-medium text-foreground">{value}</dd>
+  </motion.div>
+);
 
 export default Orders;

@@ -7,6 +7,8 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   RotateCcw,
   Search,
   X,
@@ -39,6 +41,8 @@ import { cn } from "@/lib/utils";
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 ).replace(/\/+$/, "");
+
+const ITEMS_PER_PAGE = 12;
 
 type CategoryValue = "all" | DishCategory;
 
@@ -115,38 +119,57 @@ function parseSort(value: string | null): SortValue {
     : "recommended";
 }
 
+function parsePage(value: string | null): number {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
+}
+
 function buildQuery(filters: {
   q?: string;
   category: CategoryValue;
   diet: DietValue;
   sort: SortValue;
+  page?: number;
 }) {
   const sp = new URLSearchParams();
   if (filters.q) sp.set("q", filters.q);
   if (filters.category !== "all") sp.set("category", filters.category);
   if (filters.diet !== "all") sp.set("diet", filters.diet);
   if (filters.sort !== "recommended") sp.set("sort", filters.sort);
+  if (filters.page && filters.page > 1) sp.set("page", String(filters.page));
   return sp.toString();
 }
 
-const SHELL_CLASSES = "relative mx-auto w-full max-w-[1200px] px-5";
+function pageRange(current: number, total: number): (number | "ellipsis")[] {
+  const delta = 1;
+  const range: (number | "ellipsis")[] = [];
+  const left = Math.max(2, current - delta);
+  const right = Math.min(total - 1, current + delta);
+
+  range.push(1);
+  if (left > 2) range.push("ellipsis");
+  for (let i = left; i <= right; i++) range.push(i);
+  if (right < total - 1) range.push("ellipsis");
+  if (total > 1) range.push(total);
+
+  return range;
+}
+
+const SHELL_CLASSES = "relative mx-auto w-full max-w-[1200px] px-4 sm:px-5";
 
 const CARD_LIST_CLASSES =
-  "relative flex flex-wrap justify-center gap-4 sm:gap-5";
-
-const CARD_WIDTH_CLASSES =
-  "w-[calc(50%_-_0.5rem)] sm:w-[calc(50%_-_0.625rem)] md:w-[calc(33.333%_-_0.84rem)] lg:w-[calc(25%_-_0.94rem)]";
+  "relative grid w-full grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 lg:gap-5";
 
 const ON_GOLD = "text-[#3B2416]";
 
 const Ornament = ({ className }: { className?: string }) => (
   <div
     aria-hidden
-    className={cn("flex items-center justify-center gap-3", className)}
+    className={cn("flex items-center justify-center gap-2 sm:gap-3", className)}
   >
-    <span className="h-px w-14 bg-gradient-to-r from-transparent to-[#E0A526]/70 sm:w-20" />
-    <span className="h-2.5 w-2.5 rotate-45 rounded-[3px] bg-gradient-to-br from-[#E0A526] to-[#C78E1E] shadow-[0_0_0_4px_var(--background),0_0_16px_rgba(224,165,38,0.4)]" />
-    <span className="h-px w-14 bg-gradient-to-l from-transparent to-[#E0A526]/70 sm:w-20" />
+    <span className="h-px w-10 bg-gradient-to-r from-transparent to-[#E0A526]/70 sm:w-20" />
+    <span className="h-2 w-2 rotate-45 rounded-[3px] bg-gradient-to-br from-[#E0A526] to-[#C78E1E] shadow-[0_0_0_4px_var(--background),0_0_16px_rgba(224,165,38,0.4)] sm:h-2.5 sm:w-2.5" />
+    <span className="h-px w-10 bg-gradient-to-l from-transparent to-[#E0A526]/70 sm:w-20" />
   </div>
 );
 
@@ -154,23 +177,20 @@ const headerContainer = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
-    transition: { staggerChildren: 0.08, delayChildren: 0.05 },
+    transition: { staggerChildren: 0.06, delayChildren: 0.05 },
   },
 };
 
 const headerItem = {
-  hidden: { opacity: 0, y: 24, filter: "blur(8px)" },
+  hidden: { opacity: 0, y: 20, filter: "blur(6px)" },
   show: {
     opacity: 1,
     y: 0,
     filter: "blur(0px)",
-    transition: { duration: 0.8, ease: EASE },
+    transition: { duration: 0.7, ease: EASE },
   },
 };
 
-/* ------------------------------------------------------------------ */
-/*  LUXURY SORT DROPDOWN                                                */
-/* ------------------------------------------------------------------ */
 type SortDropdownProps = {
   value: SortValue;
   onChange: (value: SortValue) => void;
@@ -275,7 +295,7 @@ const SortDropdown = ({ value, onChange, reduceMotion }: SortDropdownProps) => {
         whileTap={reduceMotion ? undefined : { scale: 0.98 }}
         transition={{ duration: 0.2, ease: EASE }}
         className={cn(
-          "group/dd relative inline-flex h-[46px] w-full items-center gap-2 overflow-hidden rounded-full border px-4 text-left text-sm font-medium transition-colors",
+          "group/dd relative inline-flex h-11 w-full items-center gap-2 overflow-hidden rounded-full border px-4 text-left text-sm font-medium transition-colors sm:h-[46px]",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
           open
             ? "border-[#E0A526]/70 bg-background shadow-[0_0_0_3px_rgba(224,165,38,0.15)]"
@@ -391,9 +411,7 @@ const SortDropdown = ({ value, onChange, reduceMotion }: SortDropdownProps) => {
                             />
                           )}
                         </span>
-                        <span className="truncate font-medium">
-                          {s.label}
-                        </span>
+                        <span className="truncate font-medium">{s.label}</span>
                       </span>
                       {selected && (
                         <span className="relative text-[10px] font-semibold uppercase tracking-wider text-[#E0A526]">
@@ -412,13 +430,174 @@ const SortDropdown = ({ value, onChange, reduceMotion }: SortDropdownProps) => {
   );
 };
 
-/* ------------------------------------------------------------------ */
+type PaginationProps = {
+  current: number;
+  totalPages: number;
+  onChange: (page: number) => void;
+  reduceMotion: boolean | null;
+  scrollTargetRef?: React.RefObject<HTMLDivElement | null>;
+};
+
+const Pagination = ({
+  current,
+  totalPages,
+  onChange,
+  reduceMotion,
+  scrollTargetRef,
+}: PaginationProps) => {
+  const pages = useMemo(
+    () => pageRange(current, totalPages),
+    [current, totalPages],
+  );
+
+  const goTo = (page: number) => {
+    if (page < 1 || page > totalPages || page === current) return;
+    onChange(page);
+    if (scrollTargetRef?.current) {
+      scrollTargetRef.current.scrollIntoView({
+        behavior: reduceMotion ? "auto" : "smooth",
+        block: "start",
+      });
+    } else if (typeof window !== "undefined") {
+      window.scrollTo({
+        top: 0,
+        behavior: reduceMotion ? "auto" : "smooth",
+      });
+    }
+  };
+
+  if (totalPages <= 1) return null;
+
+  return (
+    <motion.nav
+      aria-label="Pagination"
+      initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, ease: EASE }}
+      className="relative mt-10 flex flex-col items-center gap-3 sm:mt-14 sm:gap-4"
+    >
+      <div
+        aria-hidden
+        className="flex w-full items-center justify-center gap-3 opacity-60"
+      >
+        <span className="h-px w-16 bg-gradient-to-r from-transparent to-[#E0A526]/60 sm:w-24" />
+        <span className="h-1.5 w-1.5 rotate-45 rounded-[2px] bg-gradient-to-br from-[#E0A526] to-[#C78E1E]" />
+        <span className="h-px w-16 bg-gradient-to-l from-transparent to-[#E0A526]/60 sm:w-24" />
+      </div>
+
+      <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
+        <motion.button
+          type="button"
+          onClick={() => goTo(current - 1)}
+          disabled={current === 1}
+          whileHover={
+            reduceMotion || current === 1 ? undefined : { scale: 1.05, y: -1 }
+          }
+          whileTap={reduceMotion || current === 1 ? undefined : { scale: 0.95 }}
+          transition={{ duration: 0.2, ease: EASE }}
+          aria-label="Previous page"
+          className={cn(
+            "inline-flex h-9 w-9 items-center justify-center rounded-full border transition-colors sm:h-10 sm:w-10",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+            current === 1
+              ? "cursor-not-allowed border-border bg-background/60 text-muted-foreground/40"
+              : "border-border bg-background/80 text-foreground hover:border-[#E0A526]/50 hover:bg-[#E0A526]/5 hover:text-[#E0A526]",
+          )}
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </motion.button>
+
+        {pages.map((p, i) =>
+          p === "ellipsis" ? (
+            <span
+              key={`gap-${i}`}
+              aria-hidden
+              className="inline-flex h-9 w-9 items-center justify-center text-sm text-muted-foreground sm:h-10 sm:w-10"
+            >
+              …
+            </span>
+          ) : (
+            <motion.button
+              key={p}
+              type="button"
+              onClick={() => goTo(p)}
+              disabled={p === current}
+              whileHover={reduceMotion ? undefined : { scale: 1.05, y: -1 }}
+              whileTap={reduceMotion ? undefined : { scale: 0.95 }}
+              transition={{ duration: 0.2, ease: EASE }}
+              aria-label={`Page ${p}`}
+              aria-current={p === current ? "page" : undefined}
+              className={cn(
+                "relative inline-flex h-9 min-w-9 items-center justify-center rounded-full border px-2 text-sm font-semibold transition-colors sm:h-10 sm:min-w-10",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                p === current
+                  ? "border-transparent bg-gradient-to-br from-[#E0A526] to-[#C78E1E] text-[#3B2416] shadow-[0_10px_24px_-10px_rgba(224,165,38,0.7)]"
+                  : "border-border bg-background/80 text-foreground hover:border-[#E0A526]/50 hover:bg-[#E0A526]/5 hover:text-[#E0A526]",
+              )}
+            >
+              {p === current && (
+                <motion.span
+                  layoutId="menu-pagination-pill"
+                  transition={
+                    reduceMotion
+                      ? { duration: 0 }
+                      : { type: "spring", stiffness: 520, damping: 38 }
+                  }
+                  className="absolute inset-0 rounded-full bg-gradient-to-br from-[#E0A526] to-[#C78E1E] shadow-[0_10px_24px_-10px_rgba(224,165,38,0.7)]"
+                />
+              )}
+              <span className="relative">{p}</span>
+            </motion.button>
+          ),
+        )}
+
+        <motion.button
+          type="button"
+          onClick={() => goTo(current + 1)}
+          disabled={current === totalPages}
+          whileHover={
+            reduceMotion || current === totalPages
+              ? undefined
+              : { scale: 1.05, y: -1 }
+          }
+          whileTap={
+            reduceMotion || current === totalPages ? undefined : { scale: 0.95 }
+          }
+          transition={{ duration: 0.2, ease: EASE }}
+          aria-label="Next page"
+          className={cn(
+            "inline-flex h-9 w-9 items-center justify-center rounded-full border transition-colors sm:h-10 sm:w-10",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+            current === totalPages
+              ? "cursor-not-allowed border-border bg-background/60 text-muted-foreground/40"
+              : "border-border bg-background/80 text-foreground hover:border-[#E0A526]/50 hover:bg-[#E0A526]/5 hover:text-[#E0A526]",
+          )}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </motion.button>
+      </div>
+
+      <p className="text-xs text-muted-foreground sm:text-sm">
+        Page{" "}
+        <span className="font-semibold tabular-nums text-foreground">
+          {current}
+        </span>{" "}
+        of{" "}
+        <span className="font-semibold tabular-nums text-foreground">
+          {totalPages}
+        </span>
+      </p>
+    </motion.nav>
+  );
+};
 
 const MenuContent = () => {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const reduceMotion = useReducedMotion();
+
+  const gridTopRef = useRef<HTMLDivElement>(null);
 
   const [dishes, setDishes] = useState<MenuDish[]>([]);
   const [loading, setLoading] = useState(true);
@@ -427,15 +606,14 @@ const MenuContent = () => {
 
   const [searchState, setSearchState] = useState<SearchState | null>(null);
 
-  // Keyword now comes from the query string: /menu?q=pizza
   const keyword = (searchParams.get("q") ?? "").trim();
   const hasKeyword = keyword.length > 0;
 
   const category = parseCategory(searchParams.get("category"));
   const diet = parseDiet(searchParams.get("diet"));
   const sort = parseSort(searchParams.get("sort"));
+  const page = parsePage(searchParams.get("page"));
 
-  // Load full menu (used when there's no keyword)
   useEffect(() => {
     let cancelled = false;
 
@@ -457,8 +635,6 @@ const MenuContent = () => {
     };
   }, [attempt]);
 
-  // Server-side fuzzy search. Results are stored with the keyword they
-  // belong to, so stale results from a previous search are never shown.
   useEffect(() => {
     if (!keyword) return;
     let cancelled = false;
@@ -497,7 +673,6 @@ const MenuContent = () => {
     };
   }, [keyword, attempt]);
 
-  // Only trust results that belong to the CURRENT keyword
   const activeSearch =
     hasKeyword && searchState?.key === keyword ? searchState : null;
   const effectiveSearchResults = activeSearch?.results ?? null;
@@ -505,13 +680,11 @@ const MenuContent = () => {
   const effectiveSearchError = Boolean(activeSearch?.error);
   const effectiveDidYouMean = activeSearch?.fuzzy ? keyword : null;
 
-  // No keyword: filter the full menu by diet only
   const localMatched = useMemo(
     () => dishes.filter((dish) => diet === "all" || dish.diet === diet),
     [dishes, diet],
   );
 
-  // Use server results when searching; otherwise use the full menu
   const matched = useMemo(() => {
     if (!hasKeyword) return localMatched;
     if (!effectiveSearchResults) return [];
@@ -552,26 +725,54 @@ const MenuContent = () => {
     return list;
   }, [matched, category, sort]);
 
+  const totalPages = Math.max(1, Math.ceil(visible.length / ITEMS_PER_PAGE));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const startIndex = (safePage - 1) * ITEMS_PER_PAGE;
+  const pageItems = useMemo(
+    () => visible.slice(startIndex, startIndex + ITEMS_PER_PAGE),
+    [visible, startIndex],
+  );
+
   const hasActiveFilters =
     hasKeyword ||
     category !== "all" ||
     diet !== "all" ||
     sort !== "recommended";
 
-  // Preserves the keyword when filters change
   const updateFilters = (
     next: Partial<{
       category: CategoryValue;
       diet: DietValue;
       sort: SortValue;
+      page: number;
     }>,
+    { resetPage = true }: { resetPage?: boolean } = {},
   ) => {
-    const qs = buildQuery({ q: keyword, category, diet, sort, ...next });
+    const nextPage = resetPage ? 1 : (next.page ?? safePage);
+    const qs = buildQuery({
+      q: keyword,
+      category,
+      diet,
+      sort,
+      ...next,
+      page: nextPage,
+    });
+    window.history.replaceState(null, "", qs ? `${pathname}?${qs}` : pathname);
+  };
+
+  const changePage = (newPage: number) => {
+    const qs = buildQuery({
+      q: keyword,
+      category,
+      diet,
+      sort,
+      page: newPage,
+    });
     window.history.replaceState(null, "", qs ? `${pathname}?${qs}` : pathname);
   };
 
   const clearKeyword = () => {
-    const qs = buildQuery({ category, diet, sort });
+    const qs = buildQuery({ category, diet, sort, page: 1 });
     router.push(qs ? `/menu?${qs}` : "/menu", { scroll: false });
   };
 
@@ -590,19 +791,18 @@ const MenuContent = () => {
     ? { duration: 0 }
     : { type: "spring" as const, stiffness: 520, damping: 38 };
 
-  // A search no longer waits on the full menu request
   const isLoading = hasKeyword ? effectiveSearchLoading : loading;
   const isError = hasKeyword ? effectiveSearchError : error;
 
   return (
-    <section className="section relative w-full">
+    <section className="section relative w-full overflow-x-clip pt-6 sm:pt-0">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 overflow-hidden"
       >
-        <div className="absolute left-1/2 top-0 h-80 w-[40rem] max-w-full -translate-x-1/2 rounded-full bg-[#E0A526]/20 blur-[100px]" />
-        <div className="absolute bottom-0 left-1/2 h-72 w-[36rem] max-w-full -translate-x-1/2 rounded-full bg-[#C78E1E]/15 blur-[120px]" />
-        <div className="absolute left-1/4 top-1/3 h-64 w-64 rounded-full bg-[#E0A526]/10 blur-[90px]" />
+        <div className="absolute left-1/2 top-0 h-56 w-[26rem] max-w-full -translate-x-1/2 rounded-full bg-[#E0A526]/20 blur-[80px] sm:h-80 sm:w-[40rem] sm:blur-[100px]" />
+        <div className="absolute bottom-0 left-1/2 h-52 w-[24rem] max-w-full -translate-x-1/2 rounded-full bg-[#C78E1E]/15 blur-[100px] sm:h-72 sm:w-[36rem] sm:blur-[120px]" />
+        <div className="absolute left-1/4 top-1/3 hidden h-64 w-64 rounded-full bg-[#E0A526]/10 blur-[90px] sm:block" />
       </div>
 
       <div className={SHELL_CLASSES}>
@@ -614,15 +814,15 @@ const MenuContent = () => {
         >
           <motion.div
             variants={headerItem}
-            className="inline-flex items-center gap-2 rounded-full border border-[#E0A526]/30 bg-[#E0A526]/10 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-[#E0A526]"
+            className="inline-flex items-center gap-2 rounded-full border border-[#E0A526]/30 bg-[#E0A526]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#E0A526] sm:px-3.5 sm:py-1.5 sm:text-[11px] sm:tracking-[0.25em]"
           >
-            <ChefHat className="h-3.5 w-3.5" />
+            <ChefHat className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
             Master Table Menu
           </motion.div>
 
           <motion.h1
             variants={headerItem}
-            className="mt-6 text-balance break-words font-heading text-4xl font-bold leading-[1.1] tracking-tight text-foreground sm:text-5xl md:text-6xl"
+            className="mt-4 text-balance break-words font-heading text-3xl font-bold leading-[1.1] tracking-tight text-foreground sm:mt-6 sm:text-5xl md:text-6xl"
           >
             {hasKeyword ? (
               <>
@@ -635,7 +835,7 @@ const MenuContent = () => {
                     animate={{ scaleX: 1 }}
                     transition={{ duration: 1, ease: EASE, delay: 0.5 }}
                     style={{ transformOrigin: "left" }}
-                    className="absolute -bottom-1 left-0 h-[3px] w-full rounded-full bg-gradient-to-r from-[#E0A526] to-[#C78E1E]"
+                    className="absolute -bottom-1 left-0 h-[2px] w-full rounded-full bg-gradient-to-r from-[#E0A526] to-[#C78E1E] sm:h-[3px]"
                   />
                 </span>
               </>
@@ -650,7 +850,7 @@ const MenuContent = () => {
                     animate={{ scaleX: 1 }}
                     transition={{ duration: 1, ease: EASE, delay: 0.5 }}
                     style={{ transformOrigin: "left" }}
-                    className="absolute -bottom-1 left-0 h-[3px] w-full rounded-full bg-gradient-to-r from-[#E0A526] to-[#C78E1E]"
+                    className="absolute -bottom-1 left-0 h-[2px] w-full rounded-full bg-gradient-to-r from-[#E0A526] to-[#C78E1E] sm:h-[3px]"
                   />
                 </span>
               </>
@@ -658,12 +858,12 @@ const MenuContent = () => {
           </motion.h1>
 
           <motion.div variants={headerItem}>
-            <Ornament className="mt-6" />
+            <Ornament className="mt-4 sm:mt-6" />
           </motion.div>
 
           <motion.p
             variants={headerItem}
-            className="mt-6 max-w-xl text-balance text-base text-muted-foreground sm:text-lg"
+            className="mt-4 max-w-xl text-balance text-sm text-muted-foreground sm:mt-6 sm:text-lg"
           >
             {hasKeyword
               ? "Narrow it down with the filters below, or clear the search to see everything."
@@ -678,19 +878,21 @@ const MenuContent = () => {
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               transition={{ duration: 0.3, ease: EASE }}
-              className="mt-6 inline-flex h-10 max-w-full items-center gap-2 rounded-full border border-[#E0A526]/40 bg-card/80 pl-4 pr-3 text-sm font-medium text-foreground shadow-sm transition-colors hover:border-[#E0A526] hover:bg-[#E0A526]/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="mt-4 inline-flex h-9 max-w-full items-center gap-2 rounded-full border border-[#E0A526]/40 bg-card/80 pl-3.5 pr-2.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:border-[#E0A526] hover:bg-[#E0A526]/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:mt-6 sm:h-10 sm:pl-4 sm:pr-3 sm:text-sm"
             >
-              <Search aria-hidden className="h-4 w-4 shrink-0 text-[#E0A526]" />
+              <Search
+                aria-hidden
+                className="h-3.5 w-3.5 shrink-0 text-[#E0A526] sm:h-4 sm:w-4"
+              />
               <span className="truncate">{keyword}</span>
               <X
                 aria-hidden
-                className="h-4 w-4 shrink-0 text-muted-foreground"
+                className="h-3.5 w-3.5 shrink-0 text-muted-foreground sm:h-4 sm:w-4"
               />
               <span className="sr-only">Clear search</span>
             </motion.button>
           )}
 
-          {/* "Showing closest matches" hint for fuzzy-only results */}
           <AnimatePresence>
             {hasKeyword &&
               effectiveDidYouMean &&
@@ -701,9 +903,9 @@ const MenuContent = () => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 8 }}
                   transition={{ duration: 0.4, ease: EASE }}
-                  className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#E0A526]/30 bg-[#E0A526]/5 px-3.5 py-1.5 text-xs font-medium text-[#E0A526] sm:text-sm"
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-[#E0A526]/30 bg-[#E0A526]/5 px-3 py-1 text-[11px] font-medium text-[#E0A526] sm:mt-4 sm:gap-2 sm:px-3.5 sm:py-1.5 sm:text-sm"
                 >
-                  <Sparkle className="h-3.5 w-3.5" />
+                  <Sparkle className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                   Showing closest matches for{" "}
                   <span className="font-semibold">
                     &ldquo;{effectiveDidYouMean}&rdquo;
@@ -715,15 +917,15 @@ const MenuContent = () => {
 
         <motion.div
           initial={
-            reduceMotion ? false : { opacity: 0, y: 30, filter: "blur(10px)" }
+            reduceMotion ? false : { opacity: 0, y: 24, filter: "blur(8px)" }
           }
           animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-          transition={{ duration: 0.9, ease: EASE, delay: 0.2 }}
-          className="relative z-30 mx-auto mt-10 w-full max-w-5xl overflow-visible rounded-[2rem] border border-border bg-card/70 p-4 shadow-[0_24px_60px_-32px_rgba(74,46,32,0.35)] backdrop-blur-xl sm:mt-12 sm:p-6"
+          transition={{ duration: 0.8, ease: EASE, delay: 0.15 }}
+          className="relative z-30 mx-auto mt-6 w-full max-w-5xl overflow-visible rounded-3xl border border-border bg-card/70 p-3 shadow-[0_20px_50px_-24px_rgba(74,46,32,0.35)] backdrop-blur-xl sm:mt-12 sm:rounded-[2rem] sm:p-6"
         >
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#E0A526]/60 to-transparent"
+            className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-[#E0A526]/60 to-transparent sm:inset-x-8"
           />
           <motion.div
             aria-hidden
@@ -736,7 +938,7 @@ const MenuContent = () => {
               ease: "easeInOut",
               repeat: Infinity,
             }}
-            className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-[#E0A526]/15 blur-3xl"
+            className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-[#E0A526]/15 blur-3xl sm:h-40 sm:w-40"
           />
 
           <div
@@ -744,7 +946,7 @@ const MenuContent = () => {
             aria-label="Category"
             className="relative -m-2 overflow-x-auto p-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
-            <div className="mx-auto flex w-max gap-2 md:w-auto md:flex-wrap md:justify-center">
+            <div className="mx-auto flex w-max gap-1.5 md:w-auto md:flex-wrap md:justify-center md:gap-2">
               {CATEGORIES.map((c) => {
                 const active = category === c.value;
                 const count = counts[c.value] ?? 0;
@@ -762,7 +964,7 @@ const MenuContent = () => {
                     whileTap={!empty ? { scale: 0.96 } : undefined}
                     transition={{ duration: 0.25, ease: EASE }}
                     className={cn(
-                      "relative inline-flex h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors",
+                      "relative inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors sm:h-11 sm:gap-2 sm:px-4 sm:text-sm",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                       active
                         ? cn("border-transparent font-semibold", ON_GOLD)
@@ -781,14 +983,14 @@ const MenuContent = () => {
                     <Icon
                       aria-hidden
                       className={cn(
-                        "relative h-4 w-4 shrink-0 transition-colors",
+                        "relative h-3.5 w-3.5 shrink-0 transition-colors sm:h-4 sm:w-4",
                         active ? "text-[#3B2416]" : "text-[#E0A526]",
                       )}
                     />
                     <span className="relative">{c.label}</span>
                     <span
                       className={cn(
-                        "relative rounded-full px-1.5 py-0.5 text-xs font-semibold tabular-nums",
+                        "relative rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums sm:text-xs",
                         active
                           ? "bg-black/10"
                           : "bg-secondary text-muted-foreground",
@@ -802,7 +1004,7 @@ const MenuContent = () => {
             </div>
           </div>
 
-          <div className="relative mt-4 flex flex-col items-center gap-3 border-t border-border/80 pt-4 sm:mt-5 sm:flex-row sm:justify-center sm:gap-4 sm:pt-5">
+          <div className="relative mt-3 flex flex-col items-stretch gap-3 border-t border-border/80 pt-3 sm:mt-5 sm:flex-row sm:items-center sm:justify-center sm:gap-4 sm:pt-5">
             <div
               role="group"
               aria-label="Diet"
@@ -820,7 +1022,7 @@ const MenuContent = () => {
                     whileTap={{ scale: 0.96 }}
                     transition={{ duration: 0.2, ease: EASE }}
                     className={cn(
-                      "relative inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full px-2.5 text-sm font-medium transition-colors sm:flex-none sm:px-4",
+                      "relative inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-full px-2 text-xs font-medium transition-colors sm:h-9 sm:flex-none sm:px-4 sm:text-sm",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       active
                         ? "text-foreground"
@@ -859,19 +1061,19 @@ const MenuContent = () => {
         </motion.div>
 
         <motion.div
-          initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+          initial={reduceMotion ? false : { opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: EASE, delay: 0.4 }}
-          className="relative mt-10 flex items-center gap-4 sm:mt-12"
+          transition={{ duration: 0.6, ease: EASE, delay: 0.3 }}
+          className="relative mt-6 flex items-center gap-3 sm:mt-12 sm:gap-4"
         >
           <span
             aria-hidden
             className="h-px flex-1 bg-gradient-to-r from-transparent to-[#E0A526]/40"
           />
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <p
               aria-live="polite"
-              className="text-center text-sm text-muted-foreground"
+              className="text-center text-xs text-muted-foreground sm:text-sm"
             >
               {isLoading ? (
                 <span className="inline-flex items-center gap-2">
@@ -916,7 +1118,7 @@ const MenuContent = () => {
                 whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.96 }}
                 transition={{ duration: 0.25, ease: EASE }}
-                className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-card/80 px-3 text-sm font-medium text-muted-foreground transition-colors hover:border-[#E0A526]/50 hover:text-[#E0A526] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-card/80 px-3 text-xs font-medium text-muted-foreground transition-colors hover:border-[#E0A526]/50 hover:text-[#E0A526] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-sm"
               >
                 <RotateCcw aria-hidden className="h-3.5 w-3.5" />
                 Reset
@@ -930,11 +1132,9 @@ const MenuContent = () => {
         </motion.div>
 
         {isLoading && (
-          <div className={cn("relative mt-8", CARD_LIST_CLASSES)}>
+          <div className={cn("relative mt-6 sm:mt-8", CARD_LIST_CLASSES)}>
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className={CARD_WIDTH_CLASSES}>
-                <ProductCardSkeleton />
-              </div>
+              <ProductCardSkeleton key={i} />
             ))}
           </div>
         )}
@@ -942,26 +1142,26 @@ const MenuContent = () => {
         {!isLoading && isError && (
           <motion.div
             initial={
-              reduceMotion ? false : { opacity: 0, y: 20, filter: "blur(8px)" }
+              reduceMotion ? false : { opacity: 0, y: 16, filter: "blur(6px)" }
             }
             animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            transition={{ duration: 0.7, ease: EASE }}
-            className="relative mx-auto mt-8 flex max-w-xl flex-col items-center overflow-hidden rounded-[2rem] border border-border bg-card/70 px-6 py-14 text-center backdrop-blur-xl"
+            transition={{ duration: 0.6, ease: EASE }}
+            className="relative mx-auto mt-6 flex max-w-xl flex-col items-center overflow-hidden rounded-3xl border border-border bg-card/70 px-5 py-10 text-center backdrop-blur-xl sm:mt-8 sm:rounded-[2rem] sm:px-6 sm:py-14"
           >
             <div
               aria-hidden
               className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-[#E0A526]/20 blur-3xl"
             />
             <div className="relative">
-              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#E0A526]/15 text-[#E0A526] shadow-[0_0_30px_rgba(224,165,38,0.3)]">
-                <Soup className="h-8 w-8" />
+              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#E0A526]/15 text-[#E0A526] shadow-[0_0_30px_rgba(224,165,38,0.3)] sm:h-16 sm:w-16">
+                <Soup className="h-7 w-7 sm:h-8 sm:w-8" />
               </span>
-              <h2 className="mt-5 font-heading text-2xl font-semibold text-foreground">
+              <h2 className="mt-4 font-heading text-xl font-semibold text-foreground sm:mt-5 sm:text-2xl">
                 {hasKeyword
                   ? "Couldn't search the menu"
                   : "Couldn't load the menu"}
               </h2>
-              <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+              <p className="mt-2 max-w-sm text-xs text-muted-foreground sm:text-sm">
                 Check your connection and try again.
               </p>
               <motion.button
@@ -971,7 +1171,7 @@ const MenuContent = () => {
                 whileTap={{ scale: 0.97 }}
                 transition={{ duration: 0.3, ease: EASE }}
                 className={cn(
-                  "mt-6 inline-flex h-11 items-center rounded-full bg-gradient-to-br from-[#E0A526] to-[#C78E1E] px-6 text-sm font-semibold shadow-[0_10px_28px_-10px_rgba(224,165,38,0.6)] transition-shadow hover:shadow-[0_14px_32px_-10px_rgba(224,165,38,0.75)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  "mt-5 inline-flex h-10 items-center rounded-full bg-gradient-to-br from-[#E0A526] to-[#C78E1E] px-5 text-xs font-semibold shadow-[0_10px_28px_-10px_rgba(224,165,38,0.6)] transition-shadow hover:shadow-[0_14px_32px_-10px_rgba(224,165,38,0.75)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:mt-6 sm:h-11 sm:px-6 sm:text-sm",
                   ON_GOLD,
                 )}
               >
@@ -984,21 +1184,21 @@ const MenuContent = () => {
         {!isLoading && !isError && visible.length === 0 && (
           <motion.div
             initial={
-              reduceMotion ? false : { opacity: 0, y: 20, filter: "blur(8px)" }
+              reduceMotion ? false : { opacity: 0, y: 16, filter: "blur(6px)" }
             }
             animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            transition={{ duration: 0.7, ease: EASE }}
-            className="relative mx-auto mt-8 flex max-w-xl flex-col items-center overflow-hidden rounded-[2rem] border border-dashed border-border bg-card/50 px-6 py-14 text-center"
+            transition={{ duration: 0.6, ease: EASE }}
+            className="relative mx-auto mt-6 flex max-w-xl flex-col items-center overflow-hidden rounded-3xl border border-dashed border-border bg-card/50 px-5 py-10 text-center sm:mt-8 sm:rounded-[2rem] sm:px-6 sm:py-14"
           >
             <div
               aria-hidden
               className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-[#E0A526]/15 blur-3xl"
             />
             <div className="relative">
-              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#E0A526]/15 text-[#E0A526] shadow-[0_0_30px_rgba(224,165,38,0.3)]">
-                <UtensilsCrossed className="h-8 w-8" />
+              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#E0A526]/15 text-[#E0A526] shadow-[0_0_30px_rgba(224,165,38,0.3)] sm:h-16 sm:w-16">
+                <UtensilsCrossed className="h-7 w-7 sm:h-8 sm:w-8" />
               </span>
-              <h2 className="mt-5 break-words font-heading text-2xl font-semibold text-foreground">
+              <h2 className="mt-4 break-words font-heading text-xl font-semibold text-foreground sm:mt-5 sm:text-2xl">
                 {hasKeyword ? (
                   <>
                     Nothing found for{" "}
@@ -1010,7 +1210,7 @@ const MenuContent = () => {
                   "Nothing matches"
                 )}
               </h2>
-              <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+              <p className="mt-2 max-w-sm text-xs text-muted-foreground sm:text-sm">
                 {hasKeyword
                   ? "We couldn't find anything close. Try another word, or browse the full menu."
                   : "Try a different word, or loosen the filters to see more dishes."}
@@ -1022,7 +1222,7 @@ const MenuContent = () => {
                 whileTap={{ scale: 0.97 }}
                 transition={{ duration: 0.3, ease: EASE }}
                 className={cn(
-                  "mt-6 inline-flex h-11 items-center rounded-full bg-gradient-to-br from-[#E0A526] to-[#C78E1E] px-6 text-sm font-semibold shadow-[0_10px_28px_-10px_rgba(224,165,38,0.6)] transition-shadow hover:shadow-[0_14px_32px_-10px_rgba(224,165,38,0.75)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  "mt-5 inline-flex h-10 items-center rounded-full bg-gradient-to-br from-[#E0A526] to-[#C78E1E] px-5 text-xs font-semibold shadow-[0_10px_28px_-10px_rgba(224,165,38,0.6)] transition-shadow hover:shadow-[0_14px_32px_-10px_rgba(224,165,38,0.75)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:mt-6 sm:h-11 sm:px-6 sm:text-sm",
                   ON_GOLD,
                 )}
               >
@@ -1033,50 +1233,66 @@ const MenuContent = () => {
         )}
 
         {!isLoading && !isError && visible.length > 0 && (
-          <div className={cn("relative mt-8", CARD_LIST_CLASSES)}>
-            <AnimatePresence mode="popLayout">
-              {visible.map((dish, index) => (
-                <motion.div
-                  key={dish._id}
-                  layout={!reduceMotion}
-                  initial={
-                    reduceMotion
-                      ? false
-                      : {
-                          opacity: 0,
-                          y: 40,
-                          scale: 0.96,
-                          filter: "blur(8px)",
-                        }
-                  }
-                  animate={{
-                    opacity: 1,
-                    y: 0,
-                    scale: 1,
-                    filter: "blur(0px)",
-                  }}
-                  exit={
-                    reduceMotion
-                      ? { opacity: 0 }
-                      : {
-                          opacity: 0,
-                          y: -20,
-                          scale: 0.96,
-                          filter: "blur(6px)",
-                        }
-                  }
-                  transition={{
-                    duration: reduceMotion ? 0 : 0.7,
-                    delay: reduceMotion ? 0 : Math.min(index * 0.04, 0.4),
-                    ease: EASE,
-                  }}
-                  className={CARD_WIDTH_CLASSES}
-                >
-                  <ProductCard dish={dish} />
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
+          <>
+            <div
+              ref={gridTopRef}
+              className={cn(
+                "relative mt-6 scroll-mt-24 sm:mt-8",
+                CARD_LIST_CLASSES,
+              )}
+            >
+              <AnimatePresence mode="popLayout">
+                {pageItems.map((dish, index) => (
+                  <motion.div
+                    key={dish._id}
+                    layout={!reduceMotion}
+                    initial={
+                      reduceMotion
+                        ? false
+                        : {
+                            opacity: 0,
+                            y: 30,
+                            scale: 0.96,
+                            filter: "blur(6px)",
+                          }
+                    }
+                    animate={{
+                      opacity: 1,
+                      y: 0,
+                      scale: 1,
+                      filter: "blur(0px)",
+                    }}
+                    exit={
+                      reduceMotion
+                        ? { opacity: 0 }
+                        : {
+                            opacity: 0,
+                            y: -16,
+                            scale: 0.96,
+                            filter: "blur(4px)",
+                          }
+                    }
+                    transition={{
+                      duration: reduceMotion ? 0 : 0.55,
+                      delay: reduceMotion ? 0 : Math.min(index * 0.03, 0.3),
+                      ease: EASE,
+                    }}
+                    className="min-w-0"
+                  >
+                    <ProductCard dish={dish} />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+
+            <Pagination
+              current={safePage}
+              totalPages={totalPages}
+              onChange={changePage}
+              reduceMotion={reduceMotion}
+              scrollTargetRef={gridTopRef}
+            />
+          </>
         )}
       </div>
     </section>
@@ -1084,16 +1300,14 @@ const MenuContent = () => {
 };
 
 const MenuFallback = () => (
-  <section className="section relative w-full overflow-hidden">
+  <section className="section relative w-full overflow-x-clip pt-6 sm:pt-0">
     <div className={SHELL_CLASSES}>
-      <div className="mx-auto h-14 w-full max-w-md animate-pulse rounded-2xl bg-secondary" />
-      <div className="mx-auto mt-6 h-5 w-full max-w-lg animate-pulse rounded-lg bg-secondary" />
-      <div className="mx-auto mt-12 h-36 w-full max-w-5xl animate-pulse rounded-[2rem] bg-secondary/70" />
-      <div className={cn("mt-12", CARD_LIST_CLASSES)}>
+      <div className="mx-auto h-10 w-full max-w-sm animate-pulse rounded-2xl bg-secondary sm:h-14 sm:max-w-md" />
+      <div className="mx-auto mt-4 h-4 w-full max-w-md animate-pulse rounded-lg bg-secondary sm:mt-6 sm:h-5 sm:max-w-lg" />
+      <div className="mx-auto mt-6 h-28 w-full max-w-5xl animate-pulse rounded-3xl bg-secondary/70 sm:mt-12 sm:h-36 sm:rounded-[2rem]" />
+      <div className={cn("mt-6 sm:mt-12", CARD_LIST_CLASSES)}>
         {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className={CARD_WIDTH_CLASSES}>
-            <ProductCardSkeleton />
-          </div>
+          <ProductCardSkeleton key={i} />
         ))}
       </div>
     </div>

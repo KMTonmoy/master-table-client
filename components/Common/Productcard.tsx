@@ -112,7 +112,7 @@ const ProductCard = ({ dish, onQuickAdd }: ProductCardProps) => {
       aria-label={`View details for ${dish.name}`}
       aria-disabled={!isAvailable}
       className={cn(
-        "group relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/15 p-1.5 shadow-[0_10px_45px_-16px_rgba(74,46,32,0.28)] backdrop-blur-2xl backdrop-saturate-150 transition-all duration-500 hover:border-[#E0A526]/40 hover:bg-white/25 hover:shadow-[0_26px_65px_-18px_rgba(74,46,32,0.38)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 sm:min-h-[420px] sm:rounded-3xl sm:p-2",
+        "group relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/15 p-1.5 shadow-[0_10px_45px_-16px_rgba(74,46,32,0.28)] backdrop-blur-2xl backdrop-saturate-150 transition-all duration-500 hover:border-[#E0A526]/40 hover:bg-white/25 hover:shadow-[0_26px_65px_-18px_rgba(74,46,32,0.38)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 sm:rounded-3xl sm:p-2",
         !isAvailable && "hover:shadow-[0_10px_45px_-16px_rgba(74,46,32,0.28)]",
       )}
     >
@@ -143,7 +143,7 @@ const ProductCard = ({ dish, onQuickAdd }: ProductCardProps) => {
           src={primaryImage}
           alt={dish.name}
           fill
-          sizes="(min-width: 1024px) 25vw, 50vw"
+          sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 33vw"
           className={cn(
             "object-cover transition-transform duration-700 ease-out group-hover:scale-[1.08]",
             !isAvailable && "grayscale",
