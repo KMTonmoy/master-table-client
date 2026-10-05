@@ -39,7 +39,7 @@ import ProductCardSkeleton from "@/components/Skeleton/ProductCardSkeleton";
 import { cn } from "@/lib/utils";
 
 const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+  process.env.NEXT_PUBLIC_API_URL ?? "https://master-table-server.vercel.app"
 ).replace(/\/+$/, "");
 
 const ITEMS_PER_PAGE = 12;

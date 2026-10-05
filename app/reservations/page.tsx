@@ -21,7 +21,7 @@ import ReservationSummary from "@/components/Reservations/reservation.summary";
 import { INITIAL_FORM, ReservationForm } from "@/types/reservation.types";
 
 const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+  process.env.NEXT_PUBLIC_API_URL ?? "https://master-table-server.vercel.app"
 ).replace(/\/+$/, "");
 
 const EASE = [0.22, 1, 0.36, 1] as const;

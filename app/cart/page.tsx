@@ -26,7 +26,7 @@ import { useCart } from "@/components/providers/cart-provider";
 import type { CartItem } from "@/types/cart.types";
 
 const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+  process.env.NEXT_PUBLIC_API_URL ?? "https://master-table-server.vercel.app"
 ).replace(/\/+$/, "");
 
 const SERVICE_RATE = 0.05;

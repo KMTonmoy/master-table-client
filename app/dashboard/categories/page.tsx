@@ -16,7 +16,7 @@ import { money } from "@/lib/format";
 import type { Category } from "@/types/dashboard.types";
 
 const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+  process.env.NEXT_PUBLIC_API_URL ?? "https://master-table-server.vercel.app"
 ).replace(/\/+$/, "");
 
 type CategoryRow = Category & { image?: string };

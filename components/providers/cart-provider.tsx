@@ -14,7 +14,7 @@ import type { AuthUser } from "@/types/auth.types";
 import type { CartResponse } from "@/types/cart.types";
 
 const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+  process.env.NEXT_PUBLIC_API_URL ?? "https://master-table-server.vercel.app"
 ).replace(/\/+$/, "");
 
 const POLL_MS = 30_000;

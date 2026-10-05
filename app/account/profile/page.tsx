@@ -31,7 +31,7 @@ import { imageUpload } from "@/lib";
 import type { AuthUser } from "@/types/auth.types";
 
 const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+  process.env.NEXT_PUBLIC_API_URL ?? "https://master-table-server.vercel.app"
 ).replace(/\/+$/, "");
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;

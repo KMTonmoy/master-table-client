@@ -43,7 +43,7 @@ import type { AuthMode, AuthUser } from "@/types/auth.types";
 import { useSiteTranslate } from "@/hooks/usesitetranslate";
 
 const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+  process.env.NEXT_PUBLIC_API_URL ?? "https://master-table-server.vercel.app"
 ).replace(/\/+$/, "");
 
 const NAV_ITEMS = [

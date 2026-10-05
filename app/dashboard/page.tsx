@@ -28,7 +28,7 @@ import type {
 import StatCard from "@/components/dashboard/StatCard";
 
 const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+  process.env.NEXT_PUBLIC_API_URL ?? "https://master-table-server.vercel.app"
 ).replace(/\/+$/, "");
 
 const SHELL = "mx-auto w-full max-w-[1400px] px-5 py-8 sm:px-8 sm:py-10";

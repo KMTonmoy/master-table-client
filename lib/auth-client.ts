@@ -2,7 +2,7 @@ import axios from "axios";
 import type { AuthUser } from "@/types/auth.types";
 
 export const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+  process.env.NEXT_PUBLIC_API_URL ?? "https://master-table-server.vercel.app"
 ).replace(/\/+$/, "");
 
 export async function fetchCurrentUser(): Promise<AuthUser | null> {

@@ -11,7 +11,7 @@ import ProductCardSkeleton from "../Skeleton/ProductCardSkeleton";
 const PAGE_SIZE = 8;
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  process.env.NEXT_PUBLIC_API_URL ?? "https://master-table-server.vercel.app";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
