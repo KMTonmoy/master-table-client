@@ -35,7 +35,7 @@ const CATEGORIES: Category[] = [
     keyword: "tandoor",
     href: "/menu?q=tandoor",
     image:
-      "https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1592036219795-8533b3c132af?q=80&w=735&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     accent: "#E0A526",
   },
   {
@@ -43,7 +43,7 @@ const CATEGORIES: Category[] = [
     keyword: "curry",
     href: "/menu?q=curry",
     image:
-      "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1654863404432-cac67587e25d?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     accent: "#C78E1E",
   },
   {
@@ -51,7 +51,7 @@ const CATEGORIES: Category[] = [
     keyword: "biryani",
     href: "/menu?q=biryani",
     image:
-      "https://images.unsplash.com/photo-1631515243349-e0cb75fb8d3a?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1716550781939-beb7d7247aae?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     accent: "#B8751A",
   },
   {
@@ -373,8 +373,9 @@ const Categories = () => {
             </span>
           </Link>
         </motion.div>
+
       </div>
-    </section>
+    </section> 
   );
 };
 
