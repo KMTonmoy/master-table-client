@@ -5,6 +5,7 @@ import { ThemeProvider } from "next-themes";
 import SiteShell from "@/components/layout/site-shell";
 import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/components/providers/cart-provider";
+import { TRANSLATE_CONTAINER_ID } from "@/lib/languages";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,7 +29,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col">
+      <body className="flex min-h-full flex-col" suppressHydrationWarning>
+        <div id={TRANSLATE_CONTAINER_ID} className="hidden" />
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
           <AuthProvider>
             <CartProvider>

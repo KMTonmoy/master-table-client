@@ -14,9 +14,11 @@ import { usePathname, useRouter } from "next/navigation";
 import axios from "axios";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
+  Check,
   ChevronDown,
   CornerDownLeft,
   History,
+  Languages,
   LayoutDashboard,
   Loader2,
   LogIn,
@@ -38,6 +40,7 @@ import { cn } from "@/lib/utils";
 import AuthModal from "./auth-modal";
 import { useCart } from "@/components/providers/cart-provider";
 import type { AuthMode, AuthUser } from "@/types/auth.types";
+import { useSiteTranslate } from "@/hooks/usesitetranslate";
 
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
@@ -66,6 +69,7 @@ const Z = {
   header: "z-[10000]",
   searchDropdown: "z-[10050]",
   userDropdown: "z-[10050]",
+  langDropdown: "z-[10050]",
   authModal: "z-[10100]",
 } as const;
 
@@ -135,17 +139,7 @@ const formatCartCount = (n: number) => {
   return String(n);
 };
 
-/**
- * Highlights the portion of `text` that matches `query` (case-insensitive).
- * Used in search suggestions so the matched fragment pops.
- */
-const HighlightMatch = ({
-  text,
-  query,
-}: {
-  text: string;
-  query: string;
-}) => {
+const HighlightMatch = ({ text, query }: { text: string; query: string }) => {
   const q = query.trim();
   if (!q) return <>{text}</>;
 
@@ -183,6 +177,8 @@ const Navbar = () => {
   const { setTheme, resolvedTheme } = useTheme();
   const { cart } = useCart();
 
+  const { currentLanguage, changeLanguage, languages } = useSiteTranslate();
+
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [drawerPathname, setDrawerPathname] = useState(pathname);
@@ -194,6 +190,10 @@ const Navbar = () => {
   const [headerHeight, setHeaderHeight] = useState(0);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false);
+  const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const [mobileLangMenuOpen, setMobileLangMenuOpen] = useState(false);
+  const [mobileLangMenuOpenHeader, setMobileLangMenuOpenHeader] =
+    useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [cartPulse, setCartPulse] = useState(0);
@@ -207,6 +207,9 @@ const Navbar = () => {
   const formRef = useRef<HTMLFormElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const mobileUserMenuRef = useRef<HTMLDivElement>(null);
+  const langMenuRef = useRef<HTMLDivElement>(null);
+  const mobileLangMenuRef = useRef<HTMLDivElement>(null);
+  const mobileLangMenuHeaderRef = useRef<HTMLDivElement>(null);
   const prevCartRef = useRef(0);
   const searchReqRef = useRef(0);
 
@@ -220,11 +223,17 @@ const Navbar = () => {
   const cartCount = cart.count;
   const cartBadge = formatCartCount(cartCount);
 
+  const currentLangOption =
+    languages.find((l) => l.value === currentLanguage) ?? languages[0];
+
   if (pathname !== drawerPathname) {
     setDrawerPathname(pathname);
     setOpen(false);
     setUserMenuOpen(false);
     setMobileUserMenuOpen(false);
+    setLangMenuOpen(false);
+    setMobileLangMenuOpen(false);
+    setMobileLangMenuOpenHeader(false);
   }
 
   useEffect(() => {
@@ -357,7 +366,69 @@ const Navbar = () => {
     };
   }, [mobileUserMenuOpen]);
 
-  // Debounced API search — only runs when query meets the minimum length.
+  useEffect(() => {
+    if (!langMenuOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (
+        langMenuRef.current &&
+        !langMenuRef.current.contains(e.target as Node)
+      ) {
+        setLangMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLangMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [langMenuOpen]);
+
+  useEffect(() => {
+    if (!mobileLangMenuOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (
+        mobileLangMenuRef.current &&
+        !mobileLangMenuRef.current.contains(e.target as Node)
+      ) {
+        setMobileLangMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileLangMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [mobileLangMenuOpen]);
+
+  useEffect(() => {
+    if (!mobileLangMenuOpenHeader) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (
+        mobileLangMenuHeaderRef.current &&
+        !mobileLangMenuHeaderRef.current.contains(e.target as Node)
+      ) {
+        setMobileLangMenuOpenHeader(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileLangMenuOpenHeader(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [mobileLangMenuOpenHeader]);
+
   useEffect(() => {
     const q = query.trim();
     if (q.length < MIN_QUERY_LEN) return;
@@ -507,8 +578,6 @@ const Navbar = () => {
     }
   };
 
-  // Called from the input's onChange — resets highlight AND cancels
-  // in-flight requests / clears stale suggestions when the query is short.
   const onQueryChange = (value: string) => {
     setQuery(value);
     setActiveIndex(-1);
@@ -596,6 +665,13 @@ const Navbar = () => {
     router.push(isAdmin ? "/dashboard" : "/account/orders");
   };
 
+  const handlePickLanguage = (code: string) => {
+    setLangMenuOpen(false);
+    setMobileLangMenuOpen(false);
+    setMobileLangMenuOpenHeader(false);
+    changeLanguage(code);
+  };
+
   const cartLabel = cartCount
     ? `Cart, ${cartCount} item${cartCount === 1 ? "" : "s"}`
     : "Cart";
@@ -620,7 +696,10 @@ const Navbar = () => {
               aria-hidden
               className="h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-primary/20"
             />
-            <span className="font-heading text-xl font-bold leading-none tracking-tight text-foreground sm:text-2xl">
+            <span
+              translate="no"
+              className="notranslate font-heading text-xl font-bold leading-none tracking-tight text-foreground sm:text-2xl"
+            >
               Master Table
             </span>
           </Link>
@@ -652,6 +731,115 @@ const Navbar = () => {
           </nav>
 
           <div className="flex items-center gap-1 sm:gap-2">
+            <div
+              ref={langMenuRef}
+              translate="no"
+              className="notranslate relative hidden lg:block"
+            >
+              <button
+                type="button"
+                onClick={() => setLangMenuOpen((v) => !v)}
+                aria-haspopup="menu"
+                aria-expanded={langMenuOpen}
+                aria-label={`Change language, current: ${currentLangOption?.label ?? "English"}`}
+                className={cn(
+                  "group inline-flex h-9 items-center gap-1.5 rounded-full border border-border bg-background/60 px-2.5 transition-all duration-300",
+                  "hover:border-[#E0A526]/40 hover:bg-secondary",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  langMenuOpen && "border-[#E0A526]/60 bg-secondary",
+                )}
+              >
+                <span aria-hidden className="text-sm leading-none">
+                  {currentLangOption?.flag ?? "🇬🇧"}
+                </span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-foreground">
+                  {currentLanguage ?? "en"}
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-300",
+                    langMenuOpen && "rotate-180",
+                  )}
+                />
+              </button>
+
+              <AnimatePresence>
+                {langMenuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                    transition={{ duration: 0.18, ease: "easeOut" }}
+                    role="menu"
+                    className={cn(
+                      "absolute right-0 top-[calc(100%+10px)] w-64 origin-top-right overflow-hidden rounded-2xl border border-border bg-background shadow-[0_18px_40px_-16px_rgba(74,46,32,0.35)]",
+                      Z.langDropdown,
+                    )}
+                  >
+                    <div className="relative overflow-hidden border-b border-border/60 bg-gradient-to-br from-[#E0A526]/15 via-[#E0A526]/5 to-transparent px-4 py-3">
+                      <div
+                        aria-hidden
+                        className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-[#E0A526]/20 blur-2xl"
+                      />
+                      <div className="relative flex items-center gap-2.5">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[#E0A526]/15 text-[#E0A526]">
+                          <Languages className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-foreground">
+                            Language
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            Auto-detected · change anytime
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <ul className="max-h-72 overflow-y-auto p-1.5">
+                      {languages.map((lang) => {
+                        const selected = lang.value === currentLanguage;
+                        return (
+                          <li key={lang.value} role="none">
+                            <button
+                              type="button"
+                              role="menuitemradio"
+                              aria-checked={selected}
+                              onClick={() => handlePickLanguage(lang.value)}
+                              className={cn(
+                                "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                                "focus-visible:outline-none focus-visible:bg-secondary",
+                                selected
+                                  ? "bg-[#E0A526]/10 text-foreground"
+                                  : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                              )}
+                            >
+                              <span
+                                aria-hidden
+                                className="text-base leading-none"
+                              >
+                                {lang.flag ?? "🌐"}
+                              </span>
+                              <span className="flex min-w-0 flex-1 flex-col text-left">
+                                <span className="truncate">{lang.label}</span>
+                              </span>
+                              {selected && (
+                                <Check
+                                  aria-hidden
+                                  className="h-4 w-4 shrink-0 text-[#E0A526]"
+                                  strokeWidth={3}
+                                />
+                              )}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
             <button
               type="button"
               aria-label="Toggle theme"
@@ -745,7 +933,10 @@ const Navbar = () => {
                         />
                       )}
                     </span>
-                    <span className="max-w-[110px] truncate text-sm font-medium text-foreground">
+                    <span
+                      translate="no"
+                      className="notranslate max-w-[110px] truncate text-sm font-medium text-foreground"
+                    >
                       {user.name.split(" ")[0]}
                     </span>
                     <ChevronDown
@@ -787,7 +978,7 @@ const Navbar = () => {
                                 initialsOf(user.name)
                               )}
                             </span>
-                            <div className="min-w-0">
+                            <div translate="no" className="notranslate min-w-0">
                               <p className="truncate text-sm font-semibold text-foreground">
                                 {user.name}
                               </p>
@@ -936,7 +1127,7 @@ const Navbar = () => {
                                 initialsOf(user.name)
                               )}
                             </span>
-                            <div className="min-w-0">
+                            <div translate="no" className="notranslate min-w-0">
                               <p className="truncate text-sm font-semibold text-foreground">
                                 {user.name}
                               </p>
@@ -1042,23 +1233,113 @@ const Navbar = () => {
                   Register
                 </button>
 
+                {/* MOBILE — Login text button + language changer only */}
                 <button
                   type="button"
                   onClick={() => openAuth("login")}
-                  aria-label="Sign in"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background/60 text-foreground/80 transition-all duration-300 hover:border-primary/40 hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
+                  className="
+                    inline-flex h-9 items-center justify-center rounded-full border border-border bg-background/60 px-3.5
+                    text-xs font-semibold text-foreground transition-all duration-300
+                    hover:border-primary/40 hover:bg-secondary
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+                    lg:hidden
+                  "
                 >
-                  <LogIn className="h-4 w-4" />
+                  <LogIn className="mr-1.5 h-3.5 w-3.5" />
+                  Login
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => openAuth("register")}
-                  aria-label="Create account"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-all duration-300 hover:scale-[1.05] hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background lg:hidden"
+                <div
+                  ref={mobileLangMenuHeaderRef}
+                  translate="no"
+                  className="notranslate relative lg:hidden"
                 >
-                  <UserPlus className="h-4 w-4" />
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setMobileLangMenuOpenHeader((v) => !v)}
+                    aria-haspopup="menu"
+                    aria-expanded={mobileLangMenuOpenHeader}
+                    aria-label={`Change language, current: ${currentLangOption?.label ?? "English"}`}
+                    className={cn(
+                      "inline-flex h-9 items-center gap-1 rounded-full border border-border bg-background/60 px-2.5 text-xs font-semibold uppercase tracking-wider text-foreground transition-all duration-300",
+                      "hover:border-[#E0A526]/40 hover:bg-secondary",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      mobileLangMenuOpenHeader &&
+                        "border-[#E0A526]/60 bg-secondary",
+                    )}
+                  >
+                    <span aria-hidden className="text-sm leading-none">
+                      {currentLangOption?.flag ?? "🇬🇧"}
+                    </span>
+                    <span className="text-[10px]">
+                      {currentLanguage ?? "en"}
+                    </span>
+                    <ChevronDown
+                      className={cn(
+                        "h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-300",
+                        mobileLangMenuOpenHeader && "rotate-180",
+                      )}
+                    />
+                  </button>
+
+                  <AnimatePresence>
+                    {mobileLangMenuOpenHeader && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                        transition={{ duration: 0.18, ease: "easeOut" }}
+                        role="menu"
+                        className={cn(
+                          "absolute right-0 top-[calc(100%+10px)] w-56 origin-top-right overflow-hidden rounded-2xl border border-border bg-background shadow-[0_18px_40px_-16px_rgba(74,46,32,0.35)]",
+                          Z.langDropdown,
+                        )}
+                      >
+                        <ul className="max-h-72 overflow-y-auto p-1.5">
+                          {languages.map((lang) => {
+                            const selected = lang.value === currentLanguage;
+                            return (
+                              <li key={lang.value} role="none">
+                                <button
+                                  type="button"
+                                  role="menuitemradio"
+                                  aria-checked={selected}
+                                  onClick={() => handlePickLanguage(lang.value)}
+                                  className={cn(
+                                    "flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                                    "focus-visible:outline-none focus-visible:bg-secondary",
+                                    selected
+                                      ? "bg-[#E0A526]/10 text-foreground"
+                                      : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                                  )}
+                                >
+                                  <span
+                                    aria-hidden
+                                    className="text-base leading-none"
+                                  >
+                                    {lang.flag ?? "🌐"}
+                                  </span>
+                                  <span className="flex min-w-0 flex-1 flex-col text-left">
+                                    <span className="truncate">
+                                      {lang.label}
+                                    </span>
+                                  </span>
+                                  {selected && (
+                                    <Check
+                                      aria-hidden
+                                      className="h-4 w-4 shrink-0 text-[#E0A526]"
+                                      strokeWidth={3}
+                                    />
+                                  )}
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </>
             )}
 
@@ -1294,10 +1575,7 @@ const Navbar = () => {
                                     className="h-5 w-5 shrink-0 text-muted-foreground"
                                   />
                                   <span className="truncate">
-                                    <HighlightMatch
-                                      text={item}
-                                      query={query}
-                                    />
+                                    <HighlightMatch text={item} query={query} />
                                   </span>
                                 </button>
                                 <button
@@ -1351,6 +1629,73 @@ const Navbar = () => {
             </Link>
           );
         })}
+
+        <div
+          ref={mobileLangMenuRef}
+          translate="no"
+          className="notranslate relative"
+        >
+          <button
+            type="button"
+            onClick={() => setMobileLangMenuOpen((v) => !v)}
+            className="flex w-full items-center justify-between rounded-xl bg-secondary px-4 py-3 text-base font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+          >
+            <span className="inline-flex items-center gap-3">
+              <Languages className="h-5 w-5 text-primary" />
+              {currentLangOption?.label ?? "Language"}
+            </span>
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 text-muted-foreground transition-transform duration-300",
+                mobileLangMenuOpen && "rotate-180",
+              )}
+            />
+          </button>
+
+          <AnimatePresence>
+            {mobileLangMenuOpen && (
+              <motion.ul
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="mt-1 overflow-hidden rounded-xl border border-border bg-background"
+              >
+                {languages.map((lang) => {
+                  const selected = lang.value === currentLanguage;
+                  return (
+                    <li key={lang.value}>
+                      <button
+                        type="button"
+                        onClick={() => handlePickLanguage(lang.value)}
+                        className={cn(
+                          "flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-medium transition-colors",
+                          selected
+                            ? "bg-[#E0A526]/10 text-foreground"
+                            : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                        )}
+                      >
+                        <span className="flex items-center gap-3">
+                          <span aria-hidden className="text-base leading-none">
+                            {lang.flag ?? "🌐"}
+                          </span>
+                          {lang.label}
+                        </span>
+                        {selected && (
+                          <Check
+                            aria-hidden
+                            className="h-4 w-4 text-[#E0A526]"
+                            strokeWidth={3}
+                          />
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </motion.ul>
+            )}
+          </AnimatePresence>
+        </div>
 
         <Link
           href="/cart"

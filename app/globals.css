@@ -14,7 +14,27 @@
     transform: translateX(100%);
   }
 }
+#google_translate_element,
+.goog-te-gadget,
+.goog-te-banner-frame,
+.skiptranslate > iframe.skiptranslate {
+  display: none !important;
+}
 
+body {
+  top: 0 !important;
+  position: static !important;
+}
+
+.goog-text-highlight {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+font[style] {
+  background: transparent !important;
+  box-shadow: none !important;
+}
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
