@@ -74,6 +74,7 @@ const AuthField = ({
   onChange,
   placeholder,
   trailing,
+  autoComplete,
 }: {
   id: string;
   label: string;
@@ -83,6 +84,7 @@ const AuthField = ({
   onChange: (v: string) => void;
   placeholder?: string;
   trailing?: React.ReactNode;
+  autoComplete?: string;
 }) => (
   <label htmlFor={id} className="flex flex-col gap-2">
     <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -98,13 +100,8 @@ const AuthField = ({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="
-          h-12 w-full rounded-2xl border border-white/60 bg-white/15 pl-11 pr-11 text-sm text-foreground
-          placeholder:text-muted-foreground/70 backdrop-blur-md backdrop-saturate-150
-          transition-all duration-300
-          focus:border-primary/50 focus:bg-white/25 focus:outline-none focus:ring-2 focus:ring-primary/30
-          dark:border-white/10 dark:bg-white/5 dark:focus:bg-white/10
-        "
+        autoComplete={autoComplete}
+        className="h-12 w-full rounded-2xl border border-white/60 bg-white/15 pl-11 pr-11 text-sm text-foreground placeholder:text-muted-foreground/70 backdrop-blur-md backdrop-saturate-150 transition-all duration-300 focus:border-primary/50 focus:bg-white/25 focus:outline-none focus:ring-2 focus:ring-primary/30 dark:border-white/10 dark:bg-white/5 dark:focus:bg-white/10"
       />
       {trailing && (
         <span className="absolute right-2 top-1/2 -translate-y-1/2">
@@ -128,16 +125,7 @@ const SocialButton = ({
       type="button"
       onClick={onClick}
       aria-label={`Continue with ${isGoogle ? "Google" : "Facebook"}`}
-      className="
-        group inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl
-        border border-white/60 bg-white/20 text-sm font-semibold text-foreground
-        backdrop-blur-md backdrop-saturate-150
-        transition-all duration-300
-        hover:scale-[1.02] hover:border-white/90 hover:bg-white/35
-        active:scale-[0.98]
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background
-        dark:border-white/15 dark:bg-white/10 dark:hover:bg-white/20
-      "
+      className="group inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl border border-white/60 bg-white/20 text-sm font-semibold text-foreground backdrop-blur-md backdrop-saturate-150 transition-all duration-300 hover:scale-[1.02] hover:border-white/90 hover:bg-white/35 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background dark:border-white/15 dark:bg-white/10 dark:hover:bg-white/20"
     >
       {isGoogle ? (
         <GoogleIcon className="h-5 w-5 shrink-0" />
@@ -176,18 +164,15 @@ const AuthModal = ({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [trackedOpen, setTrackedOpen] = useState(open);
-  const [trackedMode, setTrackedMode] = useState(mode);
 
-  if (open !== trackedOpen || mode !== trackedMode) {
-    setTrackedOpen(open);
-    setTrackedMode(mode);
+  useEffect(() => {
     if (open) {
       setError(null);
       setNotice(null);
       setSubmitting(false);
+      setShowPassword(false);
     }
-  }
+  }, [open, mode]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -308,13 +293,7 @@ const AuthModal = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -12, scale: 0.97 }}
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className="
-              relative max-h-[90vh] w-full max-w-md overflow-hidden rounded-3xl
-              border border-white/70 bg-background/85
-              shadow-[0_30px_80px_-30px_rgba(74,46,32,0.5)]
-              backdrop-blur-2xl backdrop-saturate-150
-              dark:border-white/10 dark:bg-background/70
-            "
+            className="relative max-h-[90vh] w-full max-w-md overflow-hidden rounded-3xl border border-white/70 bg-background/85 shadow-[0_30px_80px_-30px_rgba(74,46,32,0.5)] backdrop-blur-2xl backdrop-saturate-150 dark:border-white/10 dark:bg-background/70"
           >
             <div className="relative max-h-[90vh] overflow-y-auto overflow-x-hidden">
               <div
@@ -408,6 +387,7 @@ const AuthModal = ({
                           setLoginForm((f) => ({ ...f, email: v }))
                         }
                         placeholder="jane@example.com"
+                        autoComplete="email"
                       />
                       <AuthField
                         id="login-password"
@@ -419,6 +399,7 @@ const AuthModal = ({
                           setLoginForm((f) => ({ ...f, password: v }))
                         }
                         placeholder="••••••••"
+                        autoComplete="current-password"
                         trailing={
                           <button
                             type="button"
@@ -457,13 +438,7 @@ const AuthModal = ({
                       <button
                         type="submit"
                         disabled={submitting}
-                        className="
-                          inline-flex h-12 w-full items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground
-                          shadow-[0_12px_32px_-12px_rgba(224,165,38,0.6)]
-                          transition-all duration-300
-                          hover:scale-[1.01] hover:bg-primary/90 active:scale-[0.99]
-                          disabled:cursor-not-allowed disabled:opacity-70
-                        "
+                        className="inline-flex h-12 w-full items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-[0_12px_32px_-12px_rgba(224,165,38,0.6)] transition-all duration-300 hover:scale-[1.01] hover:bg-primary/90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70"
                       >
                         {submitting ? "Signing in..." : "Sign in"}
                       </button>
@@ -481,6 +456,7 @@ const AuthModal = ({
                           setRegisterForm((f) => ({ ...f, name: v }))
                         }
                         placeholder="Jane Doe"
+                        autoComplete="name"
                       />
                       <AuthField
                         id="register-email"
@@ -492,6 +468,7 @@ const AuthModal = ({
                           setRegisterForm((f) => ({ ...f, email: v }))
                         }
                         placeholder="jane@example.com"
+                        autoComplete="email"
                       />
                       <AuthField
                         id="register-password"
@@ -503,6 +480,7 @@ const AuthModal = ({
                           setRegisterForm((f) => ({ ...f, password: v }))
                         }
                         placeholder="••••••••"
+                        autoComplete="new-password"
                         trailing={
                           <button
                             type="button"
@@ -530,18 +508,13 @@ const AuthModal = ({
                           setRegisterForm((f) => ({ ...f, confirm: v }))
                         }
                         placeholder="••••••••"
+                        autoComplete="new-password"
                       />
 
                       <button
                         type="submit"
                         disabled={submitting}
-                        className="
-                          inline-flex h-12 w-full items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground
-                          shadow-[0_12px_32px_-12px_rgba(224,165,38,0.6)]
-                          transition-all duration-300
-                          hover:scale-[1.01] hover:bg-primary/90 active:scale-[0.99]
-                          disabled:cursor-not-allowed disabled:opacity-70
-                        "
+                        className="inline-flex h-12 w-full items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-[0_12px_32px_-12px_rgba(224,165,38,0.6)] transition-all duration-300 hover:scale-[1.01] hover:bg-primary/90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70"
                       >
                         {submitting ? "Creating account..." : "Create account"}
                       </button>
@@ -560,18 +533,13 @@ const AuthModal = ({
                           setForgotForm((f) => ({ ...f, email: v }))
                         }
                         placeholder="jane@example.com"
+                        autoComplete="email"
                       />
 
                       <button
                         type="submit"
                         disabled={submitting}
-                        className="
-                          inline-flex h-12 w-full items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground
-                          shadow-[0_12px_32px_-12px_rgba(224,165,38,0.6)]
-                          transition-all duration-300
-                          hover:scale-[1.01] hover:bg-primary/90 active:scale-[0.99]
-                          disabled:cursor-not-allowed disabled:opacity-70
-                        "
+                        className="inline-flex h-12 w-full items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-[0_12px_32px_-12px_rgba(224,165,38,0.6)] transition-all duration-300 hover:scale-[1.01] hover:bg-primary/90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70"
                       >
                         {submitting ? "Sending link..." : "Send reset link"}
                       </button>

@@ -31,7 +31,6 @@ import {
   Sun,
   Trash2,
   UserCog,
-  UserPlus,
   X,
   CalendarCheck,
 } from "lucide-react";
@@ -43,8 +42,15 @@ import type { AuthMode, AuthUser } from "@/types/auth.types";
 import { useSiteTranslate } from "@/hooks/usesitetranslate";
 
 const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? "https://master-table-server.vercel.app"
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 ).replace(/\/+$/, "");
+
+const unwrap = <T,>(payload: unknown): T => {
+  if (payload && typeof payload === "object" && "data" in payload) {
+    return (payload as { data: T }).data;
+  }
+  return payload as T;
+};
 
 const NAV_ITEMS = [
   { label: "Home", href: "/" },
@@ -179,6 +185,7 @@ const Navbar = () => {
 
   const { currentLanguage, changeLanguage, languages } = useSiteTranslate();
 
+  const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [drawerPathname, setDrawerPathname] = useState(pathname);
@@ -226,7 +233,12 @@ const Navbar = () => {
   const currentLangOption =
     languages.find((l) => l.value === currentLanguage) ?? languages[0];
 
-  if (pathname !== drawerPathname) {
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (pathname === drawerPathname) return;
     setDrawerPathname(pathname);
     setOpen(false);
     setUserMenuOpen(false);
@@ -234,19 +246,19 @@ const Navbar = () => {
     setLangMenuOpen(false);
     setMobileLangMenuOpen(false);
     setMobileLangMenuOpenHeader(false);
-  }
+  }, [pathname, drawerPathname]);
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
-        const { data } = await axios.get<{ success: boolean; user: AuthUser }>(
-          `${API_URL}/api/auth/me`,
-          { withCredentials: true },
-        );
+        const { data } = await axios.get(`${API_URL}/api/auth/me`, {
+          withCredentials: true,
+        });
         if (cancelled) return;
-        setUser(data?.user ?? null);
+        const payload = unwrap<{ user?: AuthUser }>(data);
+        setUser(payload?.user ?? null);
       } catch {
         if (!cancelled) setUser(null);
       } finally {
@@ -438,7 +450,13 @@ const Navbar = () => {
     const timer = setTimeout(async () => {
       setSearching(true);
       try {
-        const { data } = await axios.get<{
+        const { data } = await axios.get(`${API_URL}/api/products/keyword`, {
+          params: { q, limit: SUGGESTION_LIMIT },
+        });
+
+        if (reqId !== searchReqRef.current) return;
+
+        const payload = unwrap<{
           results?: Array<{
             id?: string;
             _id?: string;
@@ -447,13 +465,9 @@ const Navbar = () => {
             price?: number;
             images?: string[];
           }>;
-        }>(`${API_URL}/api/products/keyword`, {
-          params: { q, limit: SUGGESTION_LIMIT },
-        });
+        }>(data);
 
-        if (reqId !== searchReqRef.current) return;
-
-        const list = Array.isArray(data?.results) ? data.results : [];
+        const list = Array.isArray(payload?.results) ? payload.results : [];
         const normalized: Suggestion[] = list.map((item) => ({
           id: String(item.id ?? item._id ?? ""),
           name: item.name,
@@ -846,7 +860,9 @@ const Navbar = () => {
               onClick={() => setTheme(isDark ? "light" : "dark")}
               className="inline-flex h-9 w-9 items-center justify-center rounded-full text-foreground/70 transition-all duration-300 hover:scale-[1.05] hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              {isDark ? (
+              {!mounted ? (
+                <span className="inline-block h-5 w-5" aria-hidden />
+              ) : isDark ? (
                 <Sun className="h-5 w-5" />
               ) : (
                 <Moon className="h-5 w-5" />
@@ -1209,12 +1225,7 @@ const Navbar = () => {
                 <button
                   type="button"
                   onClick={() => openAuth("login")}
-                  className="
-                    hidden h-9 items-center justify-center rounded-full px-4 text-sm font-semibold text-foreground
-                    transition-all duration-300 hover:bg-secondary
-                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
-                    lg:inline-flex
-                  "
+                  className="hidden h-9 items-center justify-center rounded-full px-4 text-sm font-semibold text-foreground transition-all duration-300 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:inline-flex"
                 >
                   Login
                 </button>
@@ -1222,28 +1233,15 @@ const Navbar = () => {
                 <button
                   type="button"
                   onClick={() => openAuth("register")}
-                  className="
-                    hidden h-9 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground
-                    shadow-sm transition-all duration-300
-                    hover:scale-[1.03] hover:bg-primary/90 hover:shadow-md
-                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background
-                    lg:inline-flex
-                  "
+                  className="hidden h-9 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition-all duration-300 hover:scale-[1.03] hover:bg-primary/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background lg:inline-flex"
                 >
                   Register
                 </button>
 
-                {/* MOBILE — Login text button + language changer only */}
                 <button
                   type="button"
                   onClick={() => openAuth("login")}
-                  className="
-                    inline-flex h-9 items-center justify-center rounded-full border border-border bg-background/60 px-3.5
-                    text-xs font-semibold text-foreground transition-all duration-300
-                    hover:border-primary/40 hover:bg-secondary
-                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
-                    lg:hidden
-                  "
+                  className="inline-flex h-9 items-center justify-center rounded-full border border-border bg-background/60 px-3.5 text-xs font-semibold text-foreground transition-all duration-300 hover:border-primary/40 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
                 >
                   <LogIn className="mr-1.5 h-3.5 w-3.5" />
                   Login

@@ -13,6 +13,11 @@ const nextConfig: NextConfig = {
         hostname: "www.escoffier.edu",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "res.cloudinary.com",
+        pathname: "/**",
+      },
     ],
   },
 };

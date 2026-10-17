@@ -53,11 +53,6 @@ const images = [
   },
 ];
 
-/* ---------------------------------- */
-/*        LUXURY MOTION VARIANTS      */
-/* ---------------------------------- */
-
-// Image: soft blur-in + slow Ken Burns zoom for cinematic feel
 const imageVariants: Variants = {
   enter: (direction: number) => ({
     x: direction > 0 ? "15%" : "-15%",

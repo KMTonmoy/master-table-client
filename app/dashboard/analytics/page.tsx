@@ -19,7 +19,7 @@ import { WEEKDAYS, money } from "@/lib/format";
 import type { RevenueSeries } from "@/types/dashboard.types";
 
 const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? "https://master-table-server.vercel.app"
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/"
 ).replace(/\/+$/, "");
 
 type Range = "30d" | "12m";

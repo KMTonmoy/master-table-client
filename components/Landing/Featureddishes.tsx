@@ -10,8 +10,9 @@ import ProductCardSkeleton from "../Skeleton/ProductCardSkeleton";
 
 const PAGE_SIZE = 8;
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "https://master-table-server.vercel.app";
+const API_BASE_URL = (
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+).replace(/\/+$/, "");
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -34,12 +35,7 @@ const headerItem: Variants = {
 };
 
 const cardReveal: Variants = {
-  hidden: {
-    opacity: 0,
-    y: 60,
-    scale: 0.92,
-    filter: "blur(10px)",
-  },
+  hidden: { opacity: 0, y: 60, scale: 0.92, filter: "blur(10px)" },
   show: {
     opacity: 1,
     y: 0,
@@ -56,6 +52,19 @@ const shuffle = <T,>(arr: T[]): T[] => {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+};
+
+const unwrap = <T,>(payload: unknown): T[] => {
+  if (Array.isArray(payload)) return payload as T[];
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "data" in payload &&
+    Array.isArray((payload as { data: unknown }).data)
+  ) {
+    return (payload as { data: T[] }).data;
+  }
+  return [];
 };
 
 const FeaturedDishes = () => {
@@ -79,11 +88,11 @@ const FeaturedDishes = () => {
     let cancelled = false;
 
     axios
-      .get<Dish[]>(`${API_BASE_URL}/products`)
+      .get(`${API_BASE_URL}/products`)
       .then((res) => {
         if (cancelled) return;
 
-        const all = res.data;
+        const all = unwrap<Dish>(res.data);
         const featured = shuffle(all.filter((d) => d.isFeatured));
         const nonFeatured = shuffle(all.filter((d) => !d.isFeatured));
 
@@ -249,7 +258,9 @@ const FeaturedDishes = () => {
                       viewport={{ once: false, amount: 0.2 }}
                       exit={{ opacity: 0, y: -20, scale: 0.96 }}
                       transition={{
-                        delay: isNewlyRevealed ? (index - firstNewIndex) * 0.06 : 0,
+                        delay: isNewlyRevealed
+                          ? (index - firstNewIndex) * 0.06
+                          : 0,
                       }}
                     >
                       <ProductCard dish={dish} />
@@ -266,16 +277,7 @@ const FeaturedDishes = () => {
                     type="button"
                     onClick={handleShowMore}
                     aria-expanded={false}
-                    className="
-                      group inline-flex h-11 items-center justify-center gap-2 rounded-full
-                      bg-primary px-8 text-sm font-semibold text-primary-foreground
-                      shadow-[0_8px_24px_-8px_rgba(74,46,32,0.45)]
-                      transition-all duration-300
-                      hover:scale-[1.04] hover:bg-primary/90 hover:shadow-[0_12px_28px_-8px_rgba(74,46,32,0.55)]
-                      active:scale-[0.98]
-                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
-                      focus-visible:ring-offset-2 focus-visible:ring-offset-background
-                    "
+                    className="group inline-flex h-11 items-center justify-center gap-2 rounded-full bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-[0_8px_24px_-8px_rgba(74,46,32,0.45)] transition-all duration-300 hover:scale-[1.04] hover:bg-primary/90 hover:shadow-[0_12px_28px_-8px_rgba(74,46,32,0.55)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
                     Show more
                     <ChevronDown className="h-4 w-4 transition-transform duration-300 group-hover:translate-y-0.5" />
@@ -287,16 +289,7 @@ const FeaturedDishes = () => {
                     type="button"
                     onClick={handleShowLess}
                     aria-expanded={true}
-                    className="
-                      group inline-flex h-11 items-center justify-center gap-2 rounded-full
-                      bg-secondary px-8 text-sm font-semibold text-secondary-foreground
-                      shadow-[0_8px_20px_-10px_rgba(74,46,32,0.3)]
-                      transition-all duration-300
-                      hover:scale-[1.04] hover:bg-accent hover:text-accent-foreground
-                      active:scale-[0.98]
-                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
-                      focus-visible:ring-offset-2 focus-visible:ring-offset-background
-                    "
+                    className="group inline-flex h-11 items-center justify-center gap-2 rounded-full bg-secondary px-8 text-sm font-semibold text-secondary-foreground shadow-[0_8px_20px_-10px_rgba(74,46,32,0.3)] transition-all duration-300 hover:scale-[1.04] hover:bg-accent hover:text-accent-foreground active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
                     Show less
                     <ChevronUp className="h-4 w-4 transition-transform duration-300 group-hover:-translate-y-0.5" />

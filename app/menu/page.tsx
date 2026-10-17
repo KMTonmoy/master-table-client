@@ -39,10 +39,23 @@ import ProductCardSkeleton from "@/components/Skeleton/ProductCardSkeleton";
 import { cn } from "@/lib/utils";
 
 const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? "https://master-table-server.vercel.app"
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 ).replace(/\/+$/, "");
 
 const ITEMS_PER_PAGE = 12;
+
+const unwrap = <T,>(payload: unknown): T[] => {
+  if (Array.isArray(payload)) return payload as T[];
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "data" in payload &&
+    Array.isArray((payload as { data: unknown }).data)
+  ) {
+    return (payload as { data: T[] }).data;
+  }
+  return [];
+};
 
 type CategoryValue = "all" | DishCategory;
 
@@ -338,11 +351,7 @@ const SortDropdown = ({ value, onChange, reduceMotion }: SortDropdownProps) => {
                 : { opacity: 0, y: -8, scale: 0.97, filter: "blur(6px)" }
             }
             transition={{ duration: 0.25, ease: EASE }}
-            className="
-              absolute left-0 right-0 top-[calc(100%+10px)] z-[9999] origin-top overflow-hidden rounded-2xl
-              border border-[#E0A526]/25 bg-card/95 shadow-[0_24px_60px_-24px_rgba(74,46,32,0.5)]
-              backdrop-blur-2xl backdrop-saturate-150
-            "
+            className="absolute left-0 right-0 top-[calc(100%+10px)] z-[9999] origin-top overflow-hidden rounded-2xl border border-[#E0A526]/25 bg-card/95 shadow-[0_24px_60px_-24px_rgba(74,46,32,0.5)] backdrop-blur-2xl backdrop-saturate-150"
             role="listbox"
             aria-label="Sort dishes"
           >
@@ -618,9 +627,9 @@ const MenuContent = () => {
     let cancelled = false;
 
     axios
-      .get<MenuDish[]>(`${API_URL}/products`)
+      .get(`${API_URL}/products`)
       .then((res) => {
-        if (!cancelled) setDishes(Array.isArray(res.data) ? res.data : []);
+        if (!cancelled) setDishes(unwrap<MenuDish>(res.data));
       })
       .catch((err) => {
         console.error("[MenuPage] Fetch failed:", err?.message);
@@ -640,21 +649,24 @@ const MenuContent = () => {
     let cancelled = false;
 
     axios
-      .get<{
-        query: string;
-        count: number;
-        fuzzy?: boolean;
-        results: MenuDish[];
-      }>(`${API_URL}/api/products/keyword`, {
+      .get(`${API_URL}/api/products/keyword`, {
         params: { q: keyword, limit: 60 },
       })
       .then(({ data }) => {
         if (cancelled) return;
+
+        const inner =
+          data && typeof data === "object" && "data" in data
+            ? (data as { data: { results?: MenuDish[]; fuzzy?: boolean } }).data
+            : data;
+
+        const results = Array.isArray(inner?.results) ? inner.results : [];
+
         setSearchState({
           key: keyword,
-          results: Array.isArray(data?.results) ? data.results : [],
+          results,
           error: false,
-          fuzzy: Boolean(data?.fuzzy),
+          fuzzy: Boolean(inner?.fuzzy),
         });
       })
       .catch((err) => {

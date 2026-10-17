@@ -32,7 +32,13 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 function extractErrorMessage(err: unknown, fallback: string): string {
-  return err instanceof Error && err.message ? err.message : fallback;
+  if (err instanceof Error) return err.message || fallback;
+  if (typeof err === "string" && err) return err;
+  if (err && typeof err === "object" && "message" in err) {
+    const msg = (err as { message: unknown }).message;
+    if (typeof msg === "string" && msg) return msg;
+  }
+  return fallback;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -154,4 +160,12 @@ export function useAuth() {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return ctx;
+}
+
+export function useUser(): AuthUser | null {
+  return useAuth().user;
+}
+
+export function useIsAdmin(): boolean {
+  return useAuth().isAdmin;
 }

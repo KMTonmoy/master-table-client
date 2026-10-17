@@ -1,3 +1,5 @@
+import axios from "axios";
+
 import type {
   ActivityItem,
   Category,
@@ -11,7 +13,21 @@ import type {
   RevenueSeries,
 } from "@/types/dashboard.types";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://master-table-server.vercel.app";
+const BASE_URL = (
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+).replace(/\/+$/, "");
+
+const unwrap = (body: unknown): unknown => {
+  if (
+    body &&
+    typeof body === "object" &&
+    "success" in body &&
+    "data" in body
+  ) {
+    return (body as { data: unknown }).data;
+  }
+  return body;
+};
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -25,11 +41,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     throw new Error(
-      body?.message || body?.error || `Request failed: ${res.status}`,
+      (body as { message?: string; error?: string })?.message ||
+        (body as { message?: string; error?: string })?.error ||
+        `Request failed: ${res.status}`,
     );
   }
 
-  return body as T;
+  return unwrap(body) as T;
 }
 
 function qs(params: Record<string, string | undefined>) {
@@ -39,6 +57,19 @@ function qs(params: Record<string, string | undefined>) {
   if (!entries.length) return "";
   return `?${new URLSearchParams(entries as [string, string][]).toString()}`;
 }
+
+export const axiosInstance = axios.create({
+  baseURL: BASE_URL,
+  withCredentials: true,
+});
+
+axiosInstance.interceptors.response.use(
+  (response) => {
+    response.data = unwrap(response.data);
+    return response;
+  },
+  (error) => Promise.reject(error),
+);
 
 export type ProductPayload = {
   name: string;
@@ -120,8 +151,6 @@ export type FunnelStep = {
   value: number;
 };
 
-// ---------- AUTH TYPES ----------
-
 export type AuthRole = "user" | "admin";
 export type AuthProviderType = "email" | "google" | "facebook";
 
@@ -169,6 +198,27 @@ export type CreateAdminUserPayload = {
   role: AuthRole;
 };
 
+export type CartItem = {
+  productId: string;
+  name: string;
+  emoji: string;
+  image: string | null;
+  category: string;
+  price: number;
+  priceChanged: boolean;
+  quantity: number;
+  lineTotal: number;
+  available: boolean;
+  reason: string | null;
+  addedAt: string | null;
+};
+
+export type CartResponse = {
+  items: CartItem[];
+  count: number;
+  subtotal: number;
+};
+
 export const api = {
   // ---------- DASHBOARD ----------
   dashboardSummary: () => request<DashboardSummary>("/api/dashboard/summary"),
@@ -196,7 +246,7 @@ export const api = {
   deleteProduct: (id: string) =>
     request(`/api/products/${id}`, { method: "DELETE" }),
 
-  // ---------- PRODUCTS (public menu CRUD) ----------
+  // ---------- PRODUCTS (public menu) ----------
   menuProducts: (params?: {
     category?: string;
     diet?: string;
@@ -296,7 +346,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  // ---------- USERS (legacy, email-keyed) ----------
+  // ---------- USERS (legacy) ----------
   users: () => request<AppUser[]>("/users"),
   user: (email: string) =>
     request<AppUser | null>(`/users/${encodeURIComponent(email)}`),
@@ -328,7 +378,8 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  deleteBanner: (id: string) => request(`/banners/${id}`, { method: "DELETE" }),
+  deleteBanner: (id: string) =>
+    request(`/banners/${id}`, { method: "DELETE" }),
 
   // ---------- PAYMENTS ----------
   createPaymentIntent: (price: number) =>
@@ -344,6 +395,21 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  // ---------- CART ----------
+  getCart: () => request<CartResponse>("/api/cart"),
+  addToCart: (productId: string, quantity = 1) =>
+    request<CartResponse>("/api/cart/items", {
+      method: "POST",
+      body: JSON.stringify({ productId, quantity }),
+    }),
+  updateCartItem: (productId: string, quantity: number) =>
+    request<CartResponse>(`/api/cart/items/${productId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ quantity }),
+    }),
+  clearCart: () =>
+    request<CartResponse>("/api/cart", { method: "DELETE" }),
 
   // ---------- AUTH ----------
   register: (data: RegisterPayload) =>
@@ -374,9 +440,9 @@ export const api = {
 
   // ---------- ADMIN: USER MANAGEMENT ----------
   adminUsers: () =>
-    request<{ success: boolean; users: AppUser[] }>("/api/admin/users"),
+    request<{ users: AppUser[] }>("/api/admin/users"),
   createAdminUser: (data: CreateAdminUserPayload) =>
-    request<{ success: boolean; user: AuthUser }>("/api/admin/users", {
+    request<{ user: AuthUser }>("/api/admin/users", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -388,3 +454,5 @@ export const api = {
   deleteAdminUser: (id: string) =>
     request<MessageResponse>(`/api/admin/users/${id}`, { method: "DELETE" }),
 };
+
+export default api;

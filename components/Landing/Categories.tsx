@@ -26,8 +26,21 @@ type ApiDish = {
 };
 
 const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? "https://master-table-server.vercel.app"
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 ).replace(/\/+$/, "");
+
+const unwrap = <T,>(payload: unknown): T[] => {
+  if (Array.isArray(payload)) return payload as T[];
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "data" in payload &&
+    Array.isArray((payload as { data: unknown }).data)
+  ) {
+    return (payload as { data: T[] }).data;
+  }
+  return [];
+};
 
 const CATEGORIES: Category[] = [
   {
@@ -93,12 +106,7 @@ const headerItem: Variants = {
 };
 
 const cardVariant: Variants = {
-  hidden: {
-    opacity: 0,
-    y: 60,
-    scale: 0.92,
-    filter: "blur(10px)",
-  },
+  hidden: { opacity: 0, y: 60, scale: 0.92, filter: "blur(10px)" },
   show: {
     opacity: 1,
     y: 0,
@@ -129,10 +137,10 @@ const Categories = () => {
     let cancelled = false;
 
     axios
-      .get<ApiDish[]>(`${API_URL}/api/products`)
+      .get(`${API_URL}/api/products`)
       .then((res) => {
         if (cancelled) return;
-        setDishes(Array.isArray(res.data) ? res.data : []);
+        setDishes(unwrap<ApiDish>(res.data));
       })
       .catch(() => {
         if (cancelled) return;
@@ -262,18 +270,7 @@ const Categories = () => {
                   aria-label={`Browse ${category.name}`}
                   className="group block h-full"
                 >
-                  <div
-                    className="
-                      relative h-full overflow-hidden rounded-3xl
-                      border border-white/70 bg-white/15 p-2
-                      shadow-[0_10px_45px_-14px_rgba(30,64,110,0.25)]
-                      backdrop-blur-3xl backdrop-saturate-150
-                      transition-all duration-500
-                      group-hover:border-white/90 group-hover:bg-white/25
-                      group-hover:shadow-[0_28px_70px_-18px_rgba(30,64,110,0.35)]
-                      dark:border-white/10 dark:bg-white/5 dark:group-hover:bg-white/10
-                    "
-                  >
+                  <div className="relative h-full overflow-hidden rounded-3xl border border-white/70 bg-white/15 p-2 shadow-[0_10px_45px_-14px_rgba(30,64,110,0.25)] backdrop-blur-3xl backdrop-saturate-150 transition-all duration-500 group-hover:border-white/90 group-hover:bg-white/25 group-hover:shadow-[0_28px_70px_-18px_rgba(30,64,110,0.35)] dark:border-white/10 dark:bg-white/5 dark:group-hover:bg-white/10">
                     <div
                       aria-hidden
                       className="pointer-events-none absolute -left-10 -top-8 h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(236,244,255,0.9),transparent_70%)] blur-2xl transition-transform duration-[1400ms] ease-out group-hover:translate-x-3 group-hover:translate-y-2 dark:bg-[radial-gradient(circle,rgba(255,255,255,0.18),transparent_70%)]"
@@ -373,9 +370,8 @@ const Categories = () => {
             </span>
           </Link>
         </motion.div>
-
       </div>
-    </section> 
+    </section>
   );
 };
 

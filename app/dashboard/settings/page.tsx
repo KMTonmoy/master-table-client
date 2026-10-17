@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 import type { RestaurantSettings } from "@/types/dashboard.types";
 
 const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? "https://master-table-server.vercel.app"
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/"
 ).replace(/\/+$/, "");
 
 type Tab = "restaurant" | "notifications" | "appearance" | "security";

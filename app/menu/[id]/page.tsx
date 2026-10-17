@@ -26,7 +26,7 @@ import AuthModal from "@/components/layout/auth-modal";
 import type { AuthMode, AuthUser } from "@/types/auth.types";
 
 const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL ?? "https://master-table-server.vercel.app"
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 ).replace(/\/+$/, "");
 
 type DishCategory =
@@ -43,7 +43,8 @@ type DishCategory =
   | "dessert";
 
 type Dish = {
-  _id: string;
+  id?: string;
+  _id?: string;
   name: string;
   description: string;
   price: number;
@@ -63,6 +64,16 @@ type Dish = {
 
 const SPICE_LABELS = ["Mild", "Mild+", "Medium", "Spicy", "Extra spicy"];
 const EASE = [0.22, 1, 0.36, 1] as const;
+
+const unwrap = <T,>(payload: unknown): T => {
+  if (payload && typeof payload === "object" && "data" in payload) {
+    return (payload as { data: T }).data;
+  }
+  return payload as T;
+};
+
+const dishId = (d: Dish | null | undefined): string =>
+  d?.id ?? d?._id ?? "";
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -223,7 +234,7 @@ const MenuDetails = () => {
   const params = useParams();
   const { add: addCart } = useCart();
 
-  const id =
+  const routeId =
     typeof params?.id === "string"
       ? params.id
       : Array.isArray(params?.id)
@@ -247,25 +258,24 @@ const MenuDetails = () => {
     null,
   );
 
-  // Scroll to top before paint — prevents bottom flash on navigation
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
     if ("scrollRestoration" in window.history) {
       window.history.scrollRestoration = "manual";
     }
     window.scrollTo(0, 0);
-  }, [id]);
+  }, [routeId]);
 
   useEffect(() => {
-    if (!id) return;
+    if (!routeId) return;
 
     let cancelled = false;
 
     (async () => {
       try {
-        const { data } = await axios.get<Dish>(`${API_URL}/products/${id}`);
+        const { data } = await axios.get(`${API_URL}/products/${routeId}`);
         if (cancelled) return;
-        setDish(data);
+        setDish(unwrap<Dish>(data));
         setActiveImage(0);
         setError(false);
       } catch {
@@ -279,19 +289,19 @@ const MenuDetails = () => {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [routeId]);
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
-        const { data } = await axios.get<{ success: boolean; user: AuthUser }>(
-          `${API_URL}/api/auth/me`,
-          { withCredentials: true },
-        );
+        const { data } = await axios.get(`${API_URL}/api/auth/me`, {
+          withCredentials: true,
+        });
         if (cancelled) return;
-        setUser(data?.user ?? null);
+        const payload = unwrap<{ user: AuthUser }>(data);
+        setUser(payload?.user ?? null);
       } catch {
         if (!cancelled) setUser(null);
       } finally {
@@ -318,11 +328,17 @@ const MenuDetails = () => {
   const runAdd = async () => {
     if (!dish || dish.isAvailable === false) return;
 
+    const id = dishId(dish);
+    if (!id) {
+      setActionError("This item is missing an id and can't be added.");
+      return;
+    }
+
     setActionError(null);
     setAddState("adding");
 
     try {
-      await addCart(dish._id, quantity);
+      await addCart(id, quantity);
       setAddState("added");
       window.setTimeout(() => setAddState("idle"), 1800);
     } catch (err) {
@@ -336,11 +352,17 @@ const MenuDetails = () => {
   const runBuy = async () => {
     if (!dish || dish.isAvailable === false) return;
 
+    const id = dishId(dish);
+    if (!id) {
+      setActionError("This item is missing an id and can't be purchased.");
+      return;
+    }
+
     setActionError(null);
     setBuying(true);
 
     try {
-      await addCart(dish._id, quantity);
+      await addCart(id, quantity);
       router.push("/cart");
     } catch (err) {
       setBuying(false);
@@ -352,7 +374,6 @@ const MenuDetails = () => {
 
   const handleAddToCart = async () => {
     if (!dish || dish.isAvailable === false) return;
-
     if (!authChecked) return;
 
     if (!user) {
@@ -365,7 +386,6 @@ const MenuDetails = () => {
 
   const handleBuyNow = async () => {
     if (!dish || dish.isAvailable === false) return;
-
     if (!authChecked) return;
 
     if (!user) {
@@ -388,7 +408,7 @@ const MenuDetails = () => {
     }
   };
 
-  if (!id) {
+  if (!routeId) {
     return (
       <section className="section relative overflow-hidden">
         <div className="content-wrap relative px-5 py-16 text-center">
