@@ -128,7 +128,6 @@ export function PaymentStep({
           {placingError}
         </div>
       )}
-
       {method === "Cash" ? (
         <div className="space-y-4">
           <div className="rounded-lg border border-white/10 bg-[#1A1512] px-3 py-3 text-xs text-white/70">
