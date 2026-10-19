@@ -1,17 +1,30 @@
-export type AuthMode = "login" | "register" | "forgot-password";
+export type AuthMode = "login" | "register";
 
-export type AuthRole = "user" | "admin";
-
-export type AuthProvider = "email" | "google" | "facebook";
+export type Address = {
+  id: string;
+  label: string;
+  line1: string;
+  line2: string;
+  city: string;
+  postalCode: string;
+  country: string;
+  phone: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
 
 export type AuthUser = {
   id: string;
+  firebaseUid?: string | null;
   name: string;
   email: string;
-  profileImage?: string;
-  role: AuthRole;
-  provider: AuthProvider;
-  isVerified?: boolean;
+  profileImage: string;
+  role: "user" | "admin";
+  provider: string;
+  isVerified: boolean;
+  phone: string;
+  addresses: Address[];
+  defaultAddressId: string | null;
 };
 
 export type LoginForm = {
@@ -26,36 +39,6 @@ export type RegisterForm = {
   confirm: string;
 };
 
-export type ForgotPasswordForm = {
-  email: string;
-};
-
-export type AuthStatus = "loading" | "authenticated" | "unauthenticated";
-
-export type AuthContextValue = {
-  user: AuthUser | null;
-  status: AuthStatus;
-  isAdmin: boolean;
-  refresh: () => Promise<AuthUser | null>;
-  logout: () => Promise<void>;
-};
-
-export type AuthSuccessResponse = {
-  success: true;
-  message?: string;
-  user: AuthUser;
-};
-
-export type AuthErrorResponse = {
-  success: false;
-  message: string;
-};
-
-export type AuthMeResponse = {
-  success: true;
-  user: AuthUser;
-};
-
 export const INITIAL_LOGIN: LoginForm = {
   email: "",
   password: "",
@@ -66,8 +49,4 @@ export const INITIAL_REGISTER: RegisterForm = {
   email: "",
   password: "",
   confirm: "",
-};
-
-export const INITIAL_FORGOT_PASSWORD: ForgotPasswordForm = {
-  email: "",
 };

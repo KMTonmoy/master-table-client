@@ -1,12 +1,28 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Bell, ChevronRight, ExternalLink, Menu, Moon, Search, Sun } from "lucide-react";
+import {
+  Bell,
+  ChevronRight,
+  ExternalLink,
+  Menu,
+  Moon,
+  Search,
+  Sun,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/dashboard/ui";
+
+const emptySubscribe = () => () => {};
+const useIsMounted = () =>
+  useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
 
 const TITLES: Record<string, string> = {
   products: "Products",
@@ -19,9 +35,27 @@ const TITLES: Record<string, string> = {
 };
 
 const NOTIFICATIONS = [
-  { id: 1, title: "New order #MT-4821", body: "Table T-07 · $20.50", time: "2 min ago", unread: true },
-  { id: 2, title: "Truffle Funghi is low on stock", body: "Only 8 portions left", time: "11 min ago", unread: true },
-  { id: 3, title: "Weekly report is ready", body: "Sales summary for Sep 7–13", time: "Yesterday", unread: false },
+  {
+    id: 1,
+    title: "New order #MT-4821",
+    body: "Table T-07 · $20.50",
+    time: "2 min ago",
+    unread: true,
+  },
+  {
+    id: 2,
+    title: "Truffle Funghi is low on stock",
+    body: "Only 8 portions left",
+    time: "11 min ago",
+    unread: true,
+  },
+  {
+    id: 3,
+    title: "Weekly report is ready",
+    body: "Sales summary for Sep 7–13",
+    time: "Yesterday",
+    unread: false,
+  },
 ];
 
 type TopbarProps = {
@@ -32,12 +66,10 @@ type TopbarProps = {
 const Topbar = ({ isScrolled, onOpenMenu }: TopbarProps) => {
   const pathname = usePathname();
   const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useIsMounted();
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -48,7 +80,8 @@ const Topbar = ({ isScrolled, onOpenMenu }: TopbarProps) => {
       if (e.key === "Escape") setNotifOpen(false);
     };
     const onClick = (e: MouseEvent) => {
-      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false);
+      if (notifRef.current && !notifRef.current.contains(e.target as Node))
+        setNotifOpen(false);
     };
     window.addEventListener("keydown", onKey);
     window.addEventListener("mousedown", onClick);
@@ -59,7 +92,7 @@ const Topbar = ({ isScrolled, onOpenMenu }: TopbarProps) => {
   }, []);
 
   const segment = pathname.split("/")[2];
-  const current = segment ? TITLES[segment] ?? segment : "Overview";
+  const current = segment ? (TITLES[segment] ?? segment) : "Overview";
   const isDark = resolvedTheme === "dark";
 
   return (
@@ -78,14 +111,22 @@ const Topbar = ({ isScrolled, onOpenMenu }: TopbarProps) => {
         <Menu className="h-5 w-5" />
       </button>
 
-      <nav aria-label="Breadcrumb" className="hidden items-center gap-1.5 text-sm sm:flex">
-        <Link href="/dashboard" className="text-muted-foreground transition-colors hover:text-foreground">
+      <nav
+        aria-label="Breadcrumb"
+        className="hidden items-center gap-1.5 text-sm sm:flex"
+      >
+        <Link
+          href="/dashboard"
+          className="text-muted-foreground transition-colors hover:text-foreground"
+        >
           Dashboard
         </Link>
         <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" />
         <span className="font-medium text-foreground">{current}</span>
       </nav>
-      <span className="font-heading text-base font-semibold text-foreground sm:hidden">{current}</span>
+      <span className="font-heading text-base font-semibold text-foreground sm:hidden">
+        {current}
+      </span>
 
       <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
         <label className="relative hidden md:block">
@@ -114,7 +155,11 @@ const Topbar = ({ isScrolled, onOpenMenu }: TopbarProps) => {
           aria-label="Toggle theme"
           className="inline-flex h-10 w-10 items-center justify-center rounded-full text-foreground/70 transition-colors hover:bg-foreground/5 hover:text-foreground"
         >
-          {mounted && isDark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
+          {mounted && isDark ? (
+            <Sun className="h-[18px] w-[18px]" />
+          ) : (
+            <Moon className="h-[18px] w-[18px]" />
+          )}
         </button>
 
         <div className="relative" ref={notifRef}>
@@ -132,19 +177,36 @@ const Topbar = ({ isScrolled, onOpenMenu }: TopbarProps) => {
           {notifOpen && (
             <div className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-border bg-popover shadow-2xl">
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                <p className="font-heading text-base font-semibold text-foreground">Notifications</p>
-                <button type="button" className="text-xs font-medium text-primary hover:underline">
+                <p className="font-heading text-base font-semibold text-foreground">
+                  Notifications
+                </p>
+                <button
+                  type="button"
+                  className="text-xs font-medium text-primary hover:underline"
+                >
                   Mark all as read
                 </button>
               </div>
               <ul>
                 {NOTIFICATIONS.map((n) => (
-                  <li key={n.id} className="flex gap-3 border-b border-border/60 px-4 py-3 last:border-0">
-                    <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", n.unread ? "bg-primary" : "bg-transparent")} />
+                  <li
+                    key={n.id}
+                    className="flex gap-3 border-b border-border/60 px-4 py-3 last:border-0"
+                  >
+                    <span
+                      className={cn(
+                        "mt-1.5 h-2 w-2 shrink-0 rounded-full",
+                        n.unread ? "bg-primary" : "bg-transparent",
+                      )}
+                    />
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground">{n.title}</p>
+                      <p className="text-sm font-medium text-foreground">
+                        {n.title}
+                      </p>
                       <p className="text-xs text-muted-foreground">{n.body}</p>
-                      <p className="mt-1 text-[11px] text-muted-foreground/80">{n.time}</p>
+                      <p className="mt-1 text-[11px] text-muted-foreground/80">
+                        {n.time}
+                      </p>
                     </div>
                   </li>
                 ))}

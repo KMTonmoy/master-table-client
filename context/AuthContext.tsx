@@ -1,171 +1,201 @@
 "use client";
 
+import { createContext, useContext, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import axios from "axios";
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
-import { api } from "@/lib/api";
+  GoogleAuthProvider,
+  FacebookAuthProvider,
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  updateProfile,
+  type User as FirebaseUser,
+} from "firebase/auth";
+import { auth } from "@/lib/firebase/firebase.config";
 import type { AuthUser } from "@/types/auth.types";
+
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+).replace(/\/+$/, "");
 
 type AuthContextValue = {
   user: AuthUser | null;
+  firebaseUser: FirebaseUser | null;
   loading: boolean;
-  isAuthenticated: boolean;
   isAdmin: boolean;
-  login: (email: string, password: string) => Promise<AuthUser>;
-  register: (
-    name: string,
-    email: string,
-    password: string,
-  ) => Promise<AuthUser>;
-  logout: () => Promise<void>;
-  forgotPassword: (email: string) => Promise<string>;
-  resetPassword: (token: string, password: string) => Promise<string>;
-  loginWithGoogle: () => void;
-  loginWithFacebook: () => void;
+  createUser: (name: string, email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signInWithFacebook: () => Promise<void>;
+  logOut: () => Promise<void>;
+  updateUserProfile: (name: string, photo: string) => Promise<void>;
   refreshUser: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+const AuthContext = createContext<AuthContextValue | null>(null);
 
-function extractErrorMessage(err: unknown, fallback: string): string {
-  if (err instanceof Error) return err.message || fallback;
-  if (typeof err === "string" && err) return err;
-  if (err && typeof err === "object" && "message" in err) {
-    const msg = (err as { message: unknown }).message;
-    if (typeof msg === "string" && msg) return msg;
-  }
-  return fallback;
-}
+const googleProvider = new GoogleAuthProvider();
+const facebookProvider = new FacebookAuthProvider();
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
-  const refreshUser = useCallback(async () => {
+  const syncUser = async (fbUser: FirebaseUser) => {
     try {
-      const res = await api.me();
-      setUser((res.user as AuthUser) ?? null);
-    } catch {
+      const res = await axios.post(
+        `${API_URL}/api/auth/sync`,
+        {
+          email: fbUser.email,
+          name: fbUser.displayName || fbUser.email?.split("@")[0] || "User",
+          photo: fbUser.photoURL || "",
+          firebaseUid: fbUser.uid,
+          provider: fbUser.providerData?.[0]?.providerId || "firebase",
+        },
+        { withCredentials: true }
+      );
+
+      const mongoUser: AuthUser = res.data?.data?.user ?? res.data?.user;
+      setUser(mongoUser);
+      return mongoUser;
+    } catch (err) {
+      console.error("Sync failed:", err);
       setUser(null);
+      throw err;
+    }
+  };
+
+  const createUser = async (name: string, email: string, password: string) => {
+    setLoading(true);
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(cred.user, { displayName: name });
+      await syncUser(cred.user);
+      router.push("/");
+    } catch (error) {
+      console.error("Error creating user:", error);
+      throw error;
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
+
+  const signIn = async (email: string, password: string) => {
+    setLoading(true);
+    try {
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      await syncUser(cred.user);
+      router.push("/");
+    } catch (error) {
+      console.error("Error signing in:", error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    setLoading(true);
+    try {
+      const cred = await signInWithPopup(auth, googleProvider);
+      await syncUser(cred.user);
+      router.push("/");
+    } catch (error) {
+      console.error("Error signing in with Google:", error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signInWithFacebook = async () => {
+    setLoading(true);
+    try {
+      const cred = await signInWithPopup(auth, facebookProvider);
+      await syncUser(cred.user);
+      router.push("/");
+    } catch (error) {
+      console.error("Error signing in with Facebook:", error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const logOut = async () => {
+    setLoading(true);
+    try {
+      await axios.post(
+        `${API_URL}/api/auth/logout`,
+        {},
+        { withCredentials: true }
+      );
+      await signOut(auth);
+      setUser(null);
+      setFirebaseUser(null);
+      router.push("/login");
+    } catch (error) {
+      console.error("Error logging out:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateUserProfile = async (name: string, photo: string) => {
+    if (!auth.currentUser) return;
+    await updateProfile(auth.currentUser, {
+      displayName: name,
+      photoURL: photo,
+    });
+    await syncUser(auth.currentUser);
+  };
+
+  const refreshUser = async () => {
+    if (!auth.currentUser) return;
+    await syncUser(auth.currentUser);
+  };
 
   useEffect(() => {
-    let ignore = false;
-
-    (async () => {
-      try {
-        const res = await api.me();
-        if (ignore) return;
-        setUser((res.user as AuthUser) ?? null);
-      } catch {
-        if (ignore) return;
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      setFirebaseUser(fbUser);
+      if (fbUser) {
+        try {
+          await syncUser(fbUser);
+        } catch (err) {
+          console.error("Auth state sync failed:", err);
+        }
+      } else {
         setUser(null);
-      } finally {
-        if (!ignore) setLoading(false);
       }
-    })();
-
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
-  const login = useCallback(async (email: string, password: string) => {
-    try {
-      const res = await api.login({ email, password });
-      const loggedInUser = res.user as AuthUser;
-      setUser(loggedInUser);
-      return loggedInUser;
-    } catch (err) {
-      throw new Error(extractErrorMessage(err, "Login failed"));
-    }
-  }, []);
-
-  const register = useCallback(
-    async (name: string, email: string, password: string) => {
-      try {
-        const res = await api.register({ name, email, password });
-        const newUser = res.user as AuthUser;
-        setUser(newUser);
-        return newUser;
-      } catch (err) {
-        throw new Error(extractErrorMessage(err, "Registration failed"));
-      }
-    },
-    [],
-  );
-
-  const logout = useCallback(async () => {
-    try {
-      await api.logout();
-    } finally {
-      setUser(null);
-    }
-  }, []);
-
-  const forgotPassword = useCallback(async (email: string) => {
-    try {
-      const res = await api.forgotPassword(email);
-      return res.message || "Reset link sent if the account exists.";
-    } catch (err) {
-      throw new Error(extractErrorMessage(err, "Could not send reset link"));
-    }
-  }, []);
-
-  const resetPassword = useCallback(async (token: string, password: string) => {
-    try {
-      const res = await api.resetPassword(token, password);
-      return res.message || "Password updated.";
-    } catch (err) {
-      throw new Error(extractErrorMessage(err, "Could not reset password"));
-    }
-  }, []);
-
-  const loginWithGoogle = useCallback(() => {
-    window.location.href = api.googleLoginUrl();
-  }, []);
-
-  const loginWithFacebook = useCallback(() => {
-    window.location.href = api.facebookLoginUrl();
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   const value: AuthContextValue = {
     user,
+    firebaseUser,
     loading,
-    isAuthenticated: Boolean(user),
     isAdmin: user?.role === "admin",
-    login,
-    register,
-    logout,
-    forgotPassword,
-    resetPassword,
-    loginWithGoogle,
-    loginWithFacebook,
+    createUser,
+    signIn,
+    signInWithGoogle,
+    signInWithFacebook,
+    logOut,
+    updateUserProfile,
     refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth() {
+export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
+  if (!ctx) throw new Error("useAuth must be used inside <AuthProvider>");
   return ctx;
-}
-
-export function useUser(): AuthUser | null {
-  return useAuth().user;
-}
-
-export function useIsAdmin(): boolean {
-  return useAuth().isAdmin;
 }

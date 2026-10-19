@@ -20,6 +20,7 @@ const ReservationCTA = () => {
             <Button
               className="btn-primary h-12 px-8 text-base"
               render={<Link href="/reservations" />}
+              nativeButton={false}
             >
               Reserve a Table
             </Button>
@@ -27,6 +28,7 @@ const ReservationCTA = () => {
               variant="outline"
               className="h-12 border-background/30 bg-transparent px-8 text-base text-background hover:bg-background/10 hover:text-background"
               render={<Link href="/menu" />}
+              nativeButton={false}
             >
               Order Online
             </Button>

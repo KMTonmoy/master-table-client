@@ -6,13 +6,11 @@ import { Eye, EyeOff, Lock, Mail, User, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import {
-  INITIAL_FORGOT_PASSWORD,
   INITIAL_LOGIN,
   INITIAL_REGISTER,
   type AuthMode,
   type LoginForm,
   type RegisterForm,
-  type ForgotPasswordForm,
 } from "@/types/auth.types";
 
 type Props = {
@@ -26,12 +24,7 @@ type Props = {
 const Z_AUTH_MODAL = "z-[10100]";
 
 const GoogleIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    xmlns="http://www.w3.org/2000/svg"
-    aria-hidden
-  >
+  <svg className={className} viewBox="0 0 24 24" aria-hidden>
     <path
       fill="#4285F4"
       d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1Z"
@@ -52,12 +45,7 @@ const GoogleIcon = ({ className }: { className?: string }) => (
 );
 
 const FacebookIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    xmlns="http://www.w3.org/2000/svg"
-    aria-hidden
-  >
+  <svg className={className} viewBox="0 0 24 24" aria-hidden>
     <path
       fill="#1877F2"
       d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.96.93-1.96 1.89v2.25h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07Z"
@@ -101,7 +89,7 @@ const AuthField = ({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         autoComplete={autoComplete}
-        className="h-12 w-full rounded-2xl border border-white/60 bg-white/15 pl-11 pr-11 text-sm text-foreground placeholder:text-muted-foreground/70 backdrop-blur-md backdrop-saturate-150 transition-all duration-300 focus:border-primary/50 focus:bg-white/25 focus:outline-none focus:ring-2 focus:ring-primary/30 dark:border-white/10 dark:bg-white/5 dark:focus:bg-white/10"
+        className="h-12 w-full rounded-2xl border border-border bg-background/60 pl-11 pr-11 text-sm text-foreground placeholder:text-muted-foreground/70 focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
       />
       {trailing && (
         <span className="absolute right-2 top-1/2 -translate-y-1/2">
@@ -125,7 +113,7 @@ const SocialButton = ({
       type="button"
       onClick={onClick}
       aria-label={`Continue with ${isGoogle ? "Google" : "Facebook"}`}
-      className="group inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl border border-white/60 bg-white/20 text-sm font-semibold text-foreground backdrop-blur-md backdrop-saturate-150 transition-all duration-300 hover:scale-[1.02] hover:border-white/90 hover:bg-white/35 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background dark:border-white/15 dark:bg-white/10 dark:hover:bg-white/20"
+      className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-background/60 text-sm font-semibold text-foreground transition-all hover:border-primary/40 hover:bg-secondary"
     >
       {isGoogle ? (
         <GoogleIcon className="h-5 w-5 shrink-0" />
@@ -139,36 +127,19 @@ const SocialButton = ({
   );
 };
 
-const AuthModal = ({
-  open,
-  mode,
-  onClose,
-  onModeChange,
-  onSuccess,
-}: Props) => {
-  const {
-    login,
-    register,
-    forgotPassword,
-    loginWithGoogle,
-    loginWithFacebook,
-  } = useAuth();
+function AuthModal({ open, mode, onClose, onModeChange, onSuccess }: Props) {
+  const { signIn, createUser, signInWithGoogle, signInWithFacebook } = useAuth();
 
   const [loginForm, setLoginForm] = useState<LoginForm>(INITIAL_LOGIN);
   const [registerForm, setRegisterForm] =
     useState<RegisterForm>(INITIAL_REGISTER);
-  const [forgotForm, setForgotForm] = useState<ForgotPasswordForm>(
-    INITIAL_FORGOT_PASSWORD
-  );
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
       setError(null);
-      setNotice(null);
       setSubmitting(false);
       setShowPassword(false);
     }
@@ -196,7 +167,7 @@ const AuthModal = ({
     setError(null);
     setSubmitting(true);
     try {
-      await login(loginForm.email, loginForm.password);
+      await signIn(loginForm.email, loginForm.password);
       setLoginForm(INITIAL_LOGIN);
       onSuccess?.();
       onClose();
@@ -222,7 +193,7 @@ const AuthModal = ({
 
     setSubmitting(true);
     try {
-      await register(
+      await createUser(
         registerForm.name,
         registerForm.email,
         registerForm.password
@@ -237,27 +208,8 @@ const AuthModal = ({
     }
   };
 
-  const handleForgotPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setNotice(null);
-    setSubmitting(true);
-    try {
-      const message = await forgotPassword(forgotForm.email);
-      setNotice(message);
-      setForgotForm(INITIAL_FORGOT_PASSWORD);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Could not send reset link"
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const isLogin = mode === "login";
   const isRegister = mode === "register";
-  const isForgot = mode === "forgot-password";
 
   return (
     <AnimatePresence>
@@ -282,95 +234,62 @@ const AuthModal = ({
           <motion.div
             role="dialog"
             aria-modal="true"
-            aria-label={
-              isLogin
-                ? "Login"
-                : isRegister
-                  ? "Create account"
-                  : "Reset password"
-            }
             initial={{ opacity: 0, y: 24, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -12, scale: 0.97 }}
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className="relative max-h-[90vh] w-full max-w-md overflow-hidden rounded-3xl border border-white/70 bg-background/85 shadow-[0_30px_80px_-30px_rgba(74,46,32,0.5)] backdrop-blur-2xl backdrop-saturate-150 dark:border-white/10 dark:bg-background/70"
+            className="relative max-h-[90vh] w-full max-w-md overflow-hidden rounded-3xl border border-border bg-background shadow-2xl"
           >
-            <div className="relative max-h-[90vh] overflow-y-auto overflow-x-hidden">
-              <div
-                aria-hidden
-                className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-primary/25 blur-3xl"
-              />
-              <div
-                aria-hidden
-                className="pointer-events-none absolute -bottom-20 -left-16 h-56 w-56 rounded-full bg-sky-100/40 blur-3xl dark:bg-white/10"
-              />
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/90 to-transparent"
-              />
-
+            <div className="relative max-h-[90vh] overflow-y-auto">
               <button
                 type="button"
                 onClick={onClose}
                 aria-label="Close"
-                className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full text-foreground/70 transition-all hover:bg-white/40 hover:text-foreground dark:hover:bg-white/10"
+                className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full text-foreground/70 hover:bg-secondary hover:text-foreground"
               >
                 <X className="h-4 w-4" />
               </button>
 
               <div className="relative p-6 sm:p-8">
                 <h2 className="font-heading text-2xl font-bold text-foreground">
-                  {isLogin
-                    ? "Welcome back"
-                    : isRegister
-                      ? "Create your account"
-                      : "Reset your password"}
+                  {isLogin ? "Welcome back" : "Create your account"}
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {isLogin
                     ? "Sign in to manage reservations and orders."
-                    : isRegister
-                      ? "Join Master Table in a few seconds."
-                      : "We'll email you a link to set a new password."}
+                    : "Join Master Table in a few seconds."}
                 </p>
 
-                {!isForgot && (
-                  <div className="mt-5 inline-flex w-full rounded-full border border-white/60 bg-white/15 p-1 backdrop-blur-md dark:border-white/10 dark:bg-white/5">
-                    <button
-                      type="button"
-                      onClick={() => onModeChange("login")}
-                      className={cn(
-                        "flex-1 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-300",
-                        isLogin
-                          ? "bg-primary text-primary-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      Login
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onModeChange("register")}
-                      className={cn(
-                        "flex-1 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-300",
-                        isRegister
-                          ? "bg-primary text-primary-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      Register
-                    </button>
-                  </div>
-                )}
+                <div className="mt-5 inline-flex w-full rounded-full border border-border bg-background/60 p-1">
+                  <button
+                    type="button"
+                    onClick={() => onModeChange("login")}
+                    className={cn(
+                      "flex-1 rounded-full px-4 py-2 text-sm font-semibold transition-all",
+                      isLogin
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Login
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onModeChange("register")}
+                    className={cn(
+                      "flex-1 rounded-full px-4 py-2 text-sm font-semibold transition-all",
+                      isRegister
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Register
+                  </button>
+                </div>
 
                 {error && (
                   <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
                     {error}
-                  </div>
-                )}
-                {notice && (
-                  <div className="mt-4 rounded-xl border border-primary/30 bg-primary/10 px-4 py-2.5 text-sm text-foreground">
-                    {notice}
                   </div>
                 )}
 
@@ -407,7 +326,7 @@ const AuthModal = ({
                             aria-label={
                               showPassword ? "Hide password" : "Show password"
                             }
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/40 hover:text-foreground dark:hover:bg-white/10"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
                           >
                             {showPassword ? (
                               <EyeOff className="h-4 w-4" />
@@ -418,27 +337,10 @@ const AuthModal = ({
                         }
                       />
 
-                      <div className="flex items-center justify-between text-xs">
-                        <label className="inline-flex items-center gap-2 text-muted-foreground">
-                          <input
-                            type="checkbox"
-                            className="h-3.5 w-3.5 rounded border-border accent-primary"
-                          />
-                          Remember me
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => onModeChange("forgot-password")}
-                          className="font-semibold text-primary hover:underline"
-                        >
-                          Forgot password?
-                        </button>
-                      </div>
-
                       <button
                         type="submit"
                         disabled={submitting}
-                        className="inline-flex h-12 w-full items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-[0_12px_32px_-12px_rgba(224,165,38,0.6)] transition-all duration-300 hover:scale-[1.01] hover:bg-primary/90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70"
+                        className="inline-flex h-12 w-full items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
                       >
                         {submitting ? "Signing in..." : "Sign in"}
                       </button>
@@ -488,7 +390,7 @@ const AuthModal = ({
                             aria-label={
                               showPassword ? "Hide password" : "Show password"
                             }
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/40 hover:text-foreground dark:hover:bg-white/10"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
                           >
                             {showPassword ? (
                               <EyeOff className="h-4 w-4" />
@@ -514,77 +416,37 @@ const AuthModal = ({
                       <button
                         type="submit"
                         disabled={submitting}
-                        className="inline-flex h-12 w-full items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-[0_12px_32px_-12px_rgba(224,165,38,0.6)] transition-all duration-300 hover:scale-[1.01] hover:bg-primary/90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70"
+                        className="inline-flex h-12 w-full items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
                       >
                         {submitting ? "Creating account..." : "Create account"}
                       </button>
                     </form>
                   )}
-
-                  {isForgot && (
-                    <form onSubmit={handleForgotPassword} className="space-y-4">
-                      <AuthField
-                        id="forgot-email"
-                        label="Email"
-                        icon={<Mail className="h-4 w-4" />}
-                        type="email"
-                        value={forgotForm.email}
-                        onChange={(v) =>
-                          setForgotForm((f) => ({ ...f, email: v }))
-                        }
-                        placeholder="jane@example.com"
-                        autoComplete="email"
-                      />
-
-                      <button
-                        type="submit"
-                        disabled={submitting}
-                        className="inline-flex h-12 w-full items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-[0_12px_32px_-12px_rgba(224,165,38,0.6)] transition-all duration-300 hover:scale-[1.01] hover:bg-primary/90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70"
-                      >
-                        {submitting ? "Sending link..." : "Send reset link"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => onModeChange("login")}
-                        className="w-full text-center text-sm font-semibold text-primary hover:underline"
-                      >
-                        Back to login
-                      </button>
-                    </form>
-                  )}
                 </div>
 
-                {!isForgot && (
-                  <>
-                    <div className="relative my-6 flex items-center">
-                      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent" />
-                      <span className="mx-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                        or continue with
-                      </span>
-                      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent" />
-                    </div>
+                <div className="relative my-6 flex items-center">
+                  <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent" />
+                  <span className="mx-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    or continue with
+                  </span>
+                  <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent" />
+                </div>
 
-                    <div className="flex flex-row gap-3">
-                      <SocialButton
-                        provider="google"
-                        onClick={loginWithGoogle}
-                      />
-                      <SocialButton
-                        provider="facebook"
-                        onClick={loginWithFacebook}
-                      />
-                    </div>
+                <div className="flex flex-row gap-3">
+                  <SocialButton provider="google" onClick={signInWithGoogle} />
+                  <SocialButton
+                    provider="facebook"
+                    onClick={signInWithFacebook}
+                  />
+                </div>
 
-                    <p className="mt-6 text-center text-xs text-muted-foreground">
-                      By continuing you agree to our{" "}
-                      <span className="font-semibold text-foreground">
-                        Terms & Privacy Policy
-                      </span>
-                      .
-                    </p>
-                  </>
-                )}
+                <p className="mt-6 text-center text-xs text-muted-foreground">
+                  By continuing you agree to our{" "}
+                  <span className="font-semibold text-foreground">
+                    Terms & Privacy Policy
+                  </span>
+                  .
+                </p>
               </div>
             </div>
           </motion.div>
@@ -592,6 +454,6 @@ const AuthModal = ({
       )}
     </AnimatePresence>
   );
-};
+}
 
 export default AuthModal;
